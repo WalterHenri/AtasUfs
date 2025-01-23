@@ -1,0 +1,24 @@
+ufs_ata_manager/
+├── application/
+├── routes/
+│   ├── __init__.py
+│   ├── ata_routes.py
+│   └── chat_routes.py
+└── templates/
+    ├── base.html
+    ├── list_atas.html
+    ├── upload_ata.html
+    └── chat.html
+├── model/
+│   ├── __init__.py
+│   ├── database.py       # Configuração do banco de dados
+│   ├── entities/         # Entidades do sistema
+│   │   ├── ata.py
+│   │   ├── user.py
+│   │   └── chat_prompt.py
+│   └── schemas/          # Schemas Pydantic para validação
+│       ├── ata_schema.py
+│       └── chat_schema.py
+└── service/
+    ├── ata_service.py    # Lógica de negócio para Atas
+    └── chat_service.py   # Lógica para interações do chatbot

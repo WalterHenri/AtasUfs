@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="card">
+        <div class="card-header">
+            <h4>Chat sobre: {{ ata.titulo }}</h4>
+            <small class="text-muted">{{ ata.data_reuniao.strftime('%d/%m/%Y') }}</small>
+        </div>
+        
+        <div class="card-body" style="height: 60vh; overflow-y: auto;" id="chat-box">
+            {% for msg in chat_history %}
+                <div class="mb-3">
+                    <div class="text-end mb-1">
+                        <span class="badge bg-primary">Você</span>
+                        <small class="text-muted">{{ msg.data_interacao.strftime('%H:%M') }}</small>
+                    </div>
+                    <div class="alert alert-secondary">{{ msg.pergunta }}</div>
+                    
+                    <div class="text-start mb-1">
+                        <span class="badge bg-success">Sistema</span>
+                        <small class="text-muted">{{ msg.data_interacao.strftime('%H:%M') }}</small>
+                    </div>
+                    <div class="alert alert-success">{{ msg.resposta }}</div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="card-footer">
+            <form id="chat-form">
+                <div class="input-group">
+                    <input type="text" class="form-control" 
+                           placeholder="Digite sua pergunta..." id="pergunta">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Enviar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('chat-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('pergunta');
+    const chatBox = document.getElementById('chat-box');
+    
+    // Adiciona pergunta ao chat
+    chatBox.innerHTML += `
+        <div class="mb-3">
+            <div class="text-end mb-1">
+                <span class="badge bg-primary">Você</span>
+                <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+            </div>
+            <div class="alert alert-secondary">${input.value}</div>
+        </div>`;
+    
+    try {
+        const response = await fetch(window.location.href, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({pergunta: input.value})
+        });
+        
+        const data = await response.json();
+        
+        // Adiciona resposta
+        chatBox.innerHTML += `
+            <div class="mb-3">
+                <div class="text-start mb-1">
+                    <span class="badge bg-success">Sistema</span>
+                    <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+                </div>
+                <div class="alert alert-success">${data.resposta}</div>
+            </div>`;
+        
+        input.value = '';
+        chatBox.scrollTop = chatBox.scrollHeight;
+        
+    } catch (error) {
+        console.error('Erro:', error);
+    }
+};
+</script>
+{% endblock %}

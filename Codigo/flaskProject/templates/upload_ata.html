@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h4 class="mb-0">Cadastrar Nova ATA</h4>
+    </div>
+    
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            
+            <div class="mb-3">
+                <label for="titulo" class="form-label">Título da Reunião</label>
+                <input type="text" class="form-control" id="titulo" name="titulo" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="data_reuniao" class="form-label">Data da Reunião</label>
+                <input type="date" class="form-control" id="data_reuniao" name="data_reuniao" required>
+            </div>
+
+            <div class="mb-3">
+                <label for="participantes" class="form-label">Participantes</label>
+                <div id="participantes-container">
+                    <div class="input-group mb-2">
+                        <input type="email" class="form-control" name="participantes" 
+                               placeholder="Email do participante" required>
+                        <button type="button" class="btn btn-outline-secondary" 
+                                onclick="addParticipantField()">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="file" class="form-label">Arquivo da ATA</label>
+                <input class="form-control" type="file" id="file" name="file" accept=".pdf,.txt" required>
+                <div class="form-text">Formatos suportados: PDF ou Texto</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Enviar</button>
+        </form>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+function addParticipantField() {
+    const container = document.getElementById('participantes-container');
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="email" class="form-control" name="participantes" 
+               placeholder="Email do participante">
+        <button type="button" class="btn btn-outline-danger" 
+                onclick="this.parentElement.remove()">-</button>
+    `;
+    container.appendChild(newField);
+}
+</script>
+{% endblock %}
+
+{% endblock %}
