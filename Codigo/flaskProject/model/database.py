@@ -6,7 +6,6 @@ db = SQLAlchemy()
 
 
 def configure_database(app):
-    # Formato correto com URL encoding para caracteres especiais
     user = 'postgres'
     password = '%3Ft1t4n%3F'  # Password "?t1t4n?" URL-encoded
     host = 'localhost'

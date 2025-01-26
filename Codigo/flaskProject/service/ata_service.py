@@ -1,44 +1,82 @@
 from model import Ata, db
 from model.schemas import AtaCreateSchema, AtaResponseSchema
-from langchain.document_loaders import PyPDFLoader, TextLoader
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
+from langchain_community.vectorstores import Chroma
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AtaService:
     def __init__(self, vector_store_path: str = "./vector_store"):
         self.vector_store_path = vector_store_path
+        self.embeddings = OllamaEmbeddings(model="llama2")  # Modelo fixo
+
+    def _validate_document(self, file_path: str):
+        """Valida se o arquivo tem conteúdo legível"""
+        try:
+            with open(file_path, 'rb') as f:
+                if f.read(10) == b'':  # Verifica se o arquivo não está vazio
+                    raise ValueError("Arquivo vazio")
+        except Exception as e:
+            logger.error(f"Erro na validação do arquivo: {str(e)}")
+            raise
 
     def _process_document(self, file_path: str):
-        """Processa documentos PDF ou texto e retorna chunks"""
-        if file_path.endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
-        else:
-            loader = TextLoader(file_path)
+        """Processa documentos com tratamento de erros"""
+        try:
+            self._validate_document(file_path)
 
-        documents = loader.load()
+            if file_path.endswith(".pdf"):
+                loader = PyPDFLoader(file_path)
+            else:
+                loader = TextLoader(file_path)
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200
-        )
-        return text_splitter.split_documents(documents)
+            documents = loader.load()
+
+            if not documents:
+                raise ValueError("Documento não contém texto processável")
+
+            # Filtra documentos vazios
+            valid_docs = [doc for doc in documents if doc.page_content.strip()]
+
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200
+            )
+            chunks = text_splitter.split_documents(valid_docs)
+
+            if not chunks:
+                raise ValueError("Nenhum chunk válido gerado")
+
+            return chunks
+
+        except Exception as e:
+            logger.error(f"Erro no processamento do documento: {str(e)}")
+            raise
 
     def create_ata(self, ata_data: AtaCreateSchema, file_path: str) -> AtaResponseSchema:
-        """Cria uma nova ATA e processa seu conteúdo"""
+        """Cria nova ATA com verificação de embeddings"""
         try:
-            # Processa o documento
             chunks = self._process_document(file_path)
 
-            # Cria embeddings e armazena no ChromaDB
-            embeddings = OllamaEmbeddings(model="llama2")
+            # Cria diretório para vetores
+            vector_dir = os.path.join(self.vector_store_path, "atas")
+            os.makedirs(vector_dir, exist_ok=True)
+
+            # Gera e valida embeddings
             vector_store = Chroma.from_documents(
                 documents=chunks,
-                embedding=embeddings,
-                persist_directory=os.path.join(self.vector_store_path, "atas")
+                embedding=self.embeddings,
+                persist_directory=vector_dir
             )
+
+            if vector_store._collection.count() == 0:
+                raise ValueError("Falha na geração de embeddings")
+
             vector_store.persist()
 
             # Salva no PostgreSQL

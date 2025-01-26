@@ -1,13 +1,10 @@
-import os
-from importlib.metadata import metadata
-
 from model import ChatPrompt, db
 from model.schemas import ChatPromptCreateSchema, ChatPromptResponseSchema
 from langchain.chains import RetrievalQA
-from langchain.llms import Ollama
 import uuid
-from langchain.embeddings import OllamaEmbeddings  # Adicionar import
-from langchain.vectorstores import Chroma  # Adicionar import
+from langchain_ollama import OllamaEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_ollama import OllamaLLM  # Novo pacote específico
 import os  # Adicionar se faltando
 
 
@@ -15,7 +12,7 @@ class ChatService:
     def __init__(self, ata_service, model_name: str = "llama2"):
         self.ata_service = ata_service
         self.model_name = model_name
-        self.llm = Ollama(model=model_name)
+        self.llm = OllamaLLM(model=model_name)
 
     def _get_qa_chain(self, ata_id: int):
         """Cria corrente QA para uma ATA específica"""

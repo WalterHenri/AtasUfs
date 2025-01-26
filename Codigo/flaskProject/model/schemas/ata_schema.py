@@ -19,3 +19,4 @@ class AtaResponseSchema(AtaCreateSchema):
     id: int
     created_at: datetime
     updated_at: datetime
+

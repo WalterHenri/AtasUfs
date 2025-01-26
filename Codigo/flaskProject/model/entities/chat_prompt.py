@@ -17,8 +17,7 @@ class ChatPrompt(db.Model):
     data_interacao = db.Column(db.DateTime, default=db.func.current_timestamp())
     sessao_id = db.Column(db.Uuid, nullable=False)
 
-    # Nome alterado para evitar conflito
-    interaction_metadata = db.Column(sqlalchemy.dialects.postgresql.TEXT)  # ← Corrigido aqui
+    interaction_metadata = db.Column(sqlalchemy.dialects.postgresql.TEXT)
 
     def log_interaction(self):
         return {

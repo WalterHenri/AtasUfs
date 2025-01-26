@@ -65,13 +65,10 @@ def upload_ata():
                     flash(f'Email inválido: {email}', 'danger')
                     return redirect(request.url)
 
-            # Criar diretório se não existir
             os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-            # Salvar arquivo
             file.save(file_path)
 
-            # Processar dados
             ata_data = AtaCreateSchema(
                 titulo=request.form['titulo'].strip(),
                 data_reuniao=request.form['data_reuniao'],
@@ -80,19 +77,14 @@ def upload_ata():
                 caminho_arquivo=file_path
             )
 
-            # Tentar criar ATA
             ata_service.create_ata(ata_data, file_path)
             flash('ATA cadastrada com sucesso!', 'success')
             return redirect(url_for('ata.list_atas'))
 
         except Exception as e:
-            # Rollback e limpeza em caso de erro
             db.session.rollback()
-
-            # Remover arquivo salvo em caso de erro
             if 'file_path' in locals() and os.path.exists(file_path):
                 os.remove(file_path)
-
             flash(f'Erro ao cadastrar ATA: {str(e)}', 'danger')
             return redirect(request.url)
 
