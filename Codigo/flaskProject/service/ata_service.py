@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class AtaService:
     def __init__(self, vector_store_path: str = "./vector_store"):
         self.vector_store_path = vector_store_path
-        self.embeddings = OllamaEmbeddings(model="llama2")  # Modelo fixo
+        self.embeddings = OllamaEmbeddings(model="deepseek-r1:1.5b")  # Modelo fixo
 
     def _validate_document(self, file_path: str):
         """Valida se o arquivo tem conteúdo legível"""
@@ -77,8 +77,6 @@ class AtaService:
             if vector_store._collection.count() == 0:
                 raise ValueError("Falha na geração de embeddings")
 
-            vector_store.persist()
-
             # Salva no PostgreSQL
             new_ata = Ata(
                 titulo=ata_data.titulo,
@@ -90,8 +88,9 @@ class AtaService:
 
             db.session.add(new_ata)
             db.session.commit()
+            db.session.refresh(new_ata)
 
-            return AtaResponseSchema(**new_ata.to_dict())
+            return AtaResponseSchema.model_validate(new_ata)
 
         except Exception as e:
             db.session.rollback()
@@ -106,7 +105,7 @@ class AtaService:
 
     def search_atas(self, query: str) -> list:
         """Busca semântica nas ATAs usando vector store"""
-        embeddings = OllamaEmbeddings(model="llama2")
+        embeddings = OllamaEmbeddings(model="deepseek-r1:1.5b")
         vector_store = Chroma(
             persist_directory=os.path.join(self.vector_store_path, "atas"),
             embedding_function=embeddings

@@ -13,6 +13,7 @@ def chat_ata(ata_id):
 
     if request.method == 'POST':
         try:
+            print("Dados recebidos:", request.json)  # Log dos dados recebidos
             session_id = request.cookies.get('session_id', str(uuid.uuid4()))
 
             prompt_data = ChatPromptCreateSchema(
@@ -22,12 +23,15 @@ def chat_ata(ata_id):
             )
 
             response = chat_service.generate_response(prompt_data)
+            print("Resposta gerada:", response)  # Log da resposta
+
             return jsonify({
                 "resposta": response.resposta,
                 "session_id": session_id
             })
 
         except Exception as e:
+            print(f"Erro no endpoint: {str(e)}")  # Log do erro
             return jsonify({"error": str(e)}), 500
 
     ata = chat_service.ata_service.get_ata_by_id(ata_id)

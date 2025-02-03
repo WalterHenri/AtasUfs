@@ -27,5 +27,6 @@ class Ata(db.Model):
             "data_reuniao": self.data_reuniao.isoformat(),
             "participantes": self.participantes,
             "conteudo": self.conteudo,
-            "caminho_arquivo": self.caminho_arquivo
+            "caminho_arquivo": self.caminho_arquivo,
+            "created_at": self.created_at.isoformat()
         }

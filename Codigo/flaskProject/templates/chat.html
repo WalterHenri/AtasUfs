@@ -45,42 +45,140 @@ document.getElementById('chat-form').onsubmit = async (e) => {
     e.preventDefault();
     const input = document.getElementById('pergunta');
     const chatBox = document.getElementById('chat-box');
-    
-    // Adiciona pergunta ao chat
+    const btn = document.querySelector('#chat-form button');
+
+    // Add user message
+    const userMessage = input.value;
     chatBox.innerHTML += `
-        <div class="mb-3">
-            <div class="text-end mb-1">
+        <div class="message user">
+            <div class="message-header">
                 <span class="badge bg-primary">Você</span>
                 <small class="text-muted">${new Date().toLocaleTimeString()}</small>
             </div>
-            <div class="alert alert-secondary">${input.value}</div>
+            <div class="message-content">${userMessage.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
         </div>`;
-    
+
+    // Clear input and show loading
+    input.value = '';
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Enviando...';
+    btn.disabled = true;
+
     try {
         const response = await fetch(window.location.href, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({pergunta: input.value})
+            body: JSON.stringify({pergunta: userMessage})
         });
-        
+
         const data = await response.json();
-        
-        // Adiciona resposta
+        if (!data.resposta) throw new Error('Resposta vazia do servidor');
+
+        // Process system response
+        const formattedResponse = data.resposta
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/<think>/g, '<div class="think">')
+            .replace(/<\/think>/g, '</div>');
+
         chatBox.innerHTML += `
-            <div class="mb-3">
-                <div class="text-start mb-1">
+            <div class="message system">
+                <div class="message-header">
                     <span class="badge bg-success">Sistema</span>
                     <small class="text-muted">${new Date().toLocaleTimeString()}</small>
                 </div>
-                <div class="alert alert-success">${data.resposta}</div>
+                <div class="message-content">${formattedResponse}</div>
             </div>`;
-        
-        input.value = '';
+
         chatBox.scrollTop = chatBox.scrollHeight;
-        
+
     } catch (error) {
         console.error('Erro:', error);
+        chatBox.innerHTML += `
+            <div class="message system">
+                <div class="message-content error">Erro ao processar a solicitação</div>
+            </div>`;
+    } finally {
+        btn.innerHTML = '<i class="bi bi-send"></i> Enviar';
+        btn.disabled = false;
     }
 };
 </script>
+
+<style>
+    /* Chat container */
+    #chat-box {
+        padding: 1rem;
+        background: #f8f9fa;
+    }
+
+    /* Message bubbles */
+    .message {
+        margin-bottom: 1.5rem;
+        max-width: 80%;
+    }
+
+    .message.user {
+        margin-left: auto;
+    }
+
+    .message-header {
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .message-content {
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: #333; /* Darker text color */
+    }
+
+    .message.user .message-content {
+        background: #007bff;
+        color: white;
+        border-radius: 1rem 1rem 0 1rem;
+    }
+
+    .message.system .message-content {
+        background: #e8f5e9; /* Softer green background */
+        border: 1px solid #c8e6c9; /* Subtle border */
+        color: #2e7d32; /* Darker green text */
+        border-radius: 1rem 1rem 1rem 0;
+    }
+
+    /* Think block styling */
+    .think {
+        font-style: italic;
+        color: #868686; /* Softer gray color */
+        padding: 0.5rem;
+        margin: 0.5rem 0;
+        border-left: 3px solid #007bff;
+        background: rgba(245, 245, 245, 0.5); /* Very light gray background */
+    }
+
+    /* Error message */
+    .error {
+        background: #ffebee !important;
+        color: #c62828 !important;
+        border: 1px solid #ffcdd2;
+    }
+
+    /* Loading state */
+    .spinner-border {
+        vertical-align: -0.125em;
+        color: #007bff; /* Blue spinner to match theme */
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .message {
+            max-width: 90%;
+        }
+    }
+</style>
+
 {% endblock %}

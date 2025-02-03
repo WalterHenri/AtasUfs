@@ -15,8 +15,15 @@ class AtaCreateSchema(BaseModel):
             raise ValueError("Título não pode exceder 255 caracteres")
         return v
 
-class AtaResponseSchema(AtaCreateSchema):
+class AtaResponseSchema(BaseModel):
     id: int
+    titulo: str
+    data_reuniao: date
+    participantes: list[str]
+    conteudo: str
+    caminho_arquivo: str
     created_at: datetime
-    updated_at: datetime
+
+    class Config:
+        from_attributes = True 
 
