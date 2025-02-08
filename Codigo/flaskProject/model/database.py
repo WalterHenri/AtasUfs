@@ -22,7 +22,7 @@ def configure_database(app):
     with app.app_context():
         db.create_all()
 
-# Auditoria automática para updated_at
+
 @event.listens_for(db.Model, 'before_update', propagate=True)
 def update_updated_at(mapper, connection, target):
     target.updated_at = datetime.utcnow()
