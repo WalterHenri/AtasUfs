@@ -1,8 +1,6 @@
 CREATE TABLE Atas (
     id SERIAL PRIMARY KEY,
     titulo VARCHAR(255) NOT NULL,
-    data_reuniao DATE NOT NULL,
-    participantes TEXT[] NOT NULL,
     conteudo TEXT NOT NULL,
     caminho_arquivo VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -20,7 +18,6 @@ CREATE TABLE Users (
 
 CREATE TABLE ChatPrompts (
     id SERIAL PRIMARY KEY,
-    ata_id INT REFERENCES Atas(id) ON DELETE CASCADE,
     user_id INT REFERENCES Users(id) ON DELETE SET NULL,
     pergunta TEXT NOT NULL,
     resposta TEXT NOT NULL,

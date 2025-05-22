@@ -11,6 +11,7 @@
         <div class="container">
             <a class="navbar-brand" href="/">Sistema de ATAs</a>
             <div class="navbar-nav">
+                <a class="nav-link" href="{{ url_for('chat.chat_ata') }}">Chat</a>
                 <a class="nav-link" href="{{ url_for('ata.list_atas') }}">ATAs</a>
                 <a class="nav-link" href="{{ url_for('ata.upload_ata') }}">Nova ATA</a>
             </div>

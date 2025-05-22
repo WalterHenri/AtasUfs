@@ -8,7 +8,6 @@ class ChatPrompt(db.Model):
     __tablename__ = 'chat_prompts'
 
     id = db.Column(db.Integer, primary_key=True)
-    ata_id = db.Column(db.Integer, db.ForeignKey('atas.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     pergunta = db.Column(db.Text, nullable=False)
     resposta = db.Column(db.Text, nullable=False)

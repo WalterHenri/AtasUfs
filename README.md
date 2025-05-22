@@ -1,123 +1,105 @@
 # Sistema de Gerenciamento de ATAs com IA
 
-Sistema para gestão de Atas de Reunião com capacidade de busca semântica e chat utilizando modelos de LLM via Ollama.
+Sistema para gestão de Atas de Reunião com capacidade de busca semântica e chat utilizando modelos de LLM (Google Gemini, Ollama) e embeddings OpenAI.
 
 ## Pré-requisitos
 
 - Python 3.8+
-- Ollama instalado e configurado
 - Git (para clonar o repositório)
-- 4GB+ de RAM livre (para execução dos modelos)
+- 4GB+ de RAM livre (para execução dos modelos locais Ollama, se utilizados)
+- **Chaves de API:**
+    - `OPENAI_API_KEY` para embeddings (OpenAI text-embedding-3-large).
+    - `GOOGLE_API_KEY` para geração de texto com Gemini Pro.
+- Ollama instalado e configurado (APENAS se for utilizar modelos Ollama para geração via chat).
 
 ## Instalação
 
-1. **Instale e configure o Ollama**
-   ```bash
-   # Baixe e instale o Ollama
-   curl -fsSL https://ollama.com/install.sh | sh
-
-   # Inicie o serviço Ollama
-   ollama serve
-
-   # Baixe o modelo necessário (em outro terminal)
-   ollama pull deepseek-r1:1.5b 
-   ```
-2. **Clone o repositório**
-
-    ```bash 
-    git clone https://github.com/WalterHenri/AtasUfs.git
-    cd AtasUFS
+1.  **Configure as Chaves de API**
+    Crie um arquivo `.env` na raiz do projeto e adicione suas chaves:
+    ```env
+    OPENAI_API_KEY="sk-..."
+    GOOGLE_API_KEY="AIza..."
+    FLASK_SECRET_KEY="uma_chave_secreta_forte_aqui"
     ```
-3. **Configure o ambiente virtual**
 
+2.  **(Opcional) Instale e configure o Ollama (se for usar modelos Ollama)**
     ```bash
-    python -m venv venv
-    source venv/bin/activate  # Linux/Mac
-    venv\Scripts\activate  # Windows
-    ```
-4. **Instale as dependências**
+    # Baixe e instale o Ollama
+    curl -fsSL [https://ollama.com/install.sh](https://ollama.com/install.sh) | sh
 
+    # Inicie o serviço Ollama (em background)
+    ollama serve &
+
+    # Baixe um modelo (ex: deepseek-coder) em outro terminal (se for usar)
+    ollama pull deepseek-r1:1.5b
+    # ollama pull llama3
+    ```
+3.  **Clone o repositório**
+    ```bash
+    git clone [https://github.com/WalterHenri/AtasUfs.git](https://github.com/WalterHenri/AtasUfs.git)
+    cd AtasUfs
+    ```
+4.  **Configure o ambiente virtual**
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1 # em windows
+    ```
+5.  **Instale as dependências**
     ```bash
     pip install -r requirements.txt
     ```
-
-5. **Configure as pastas necessárias**
-
+6.  **Configure as pastas necessárias** (se não criadas automaticamente pelo app.py)
     ```bash
-    mkdir uploads
-    mkdir vector_store
+    mkdir -p uploads
+    mkdir -p vector_store/atas 
     ```
-   
-5. **Crie o banco de dados**
+7.  **Crie o banco de dados**
+    Instale o PostgreSQL (ex: versão 12+) na porta 5432.
+    Crie um banco de dados (ex: `AtasUfs`).
+    Configure suas credenciais de conexão no arquivo `AtasUfs/Codigo/flaskProject/model/database.py` ou preferencialmente via variáveis de ambiente que o `database.py` possa ler.
+    Rode o `AtasUfs/Documentacao/Banco de dados/Script.sql` para criar as tabelas.
+    *(Nota: O script `database.py` atualmente tem credenciais hardcoded. É altamente recomendável modificá-lo para usar variáveis de ambiente para a string de conexão do banco de dados.)*
 
-    instale o postgresql na porta 5432 e rode o Script.sql para gerar o banco de dados
-    preencha sua string de conexão em database.py (requer ser automatizado)
-
-6. **Executando a aplicação**
-
+8.  **Executando a aplicação**
     ```bash
-    # Inicie o servidor Flask
-    python app.py
-    # A aplicação estará disponível em: http://localhost:5000
+    # Certifique-se que o Ollama está rodando em segundo plano SE você planeja usar um modelo Ollama.
+    # flask run # Ou use o python app.py
+    python Codigo/flaskProject/app.py
     ```
+    A aplicação estará disponível em: `http://localhost:5000`
+    A interface de chat em `http://localhost:5000/chat/` permitirá selecionar entre Gemini e modelos Ollama configurados.
 
-# Rotas Principais
-
-## ATAs
-
-    GET /atas/ - Lista todas as ATAs
-
-    POST /atas/ - Cria nova ATA (com upload de arquivo)
     
-    GET /atas/<id> - Mostra detalhes de uma ATA
-
-    GET /atas/search?q=<query> - Busca semântica nas ATAs
-
-## Chat
-
-    POST /chat/ - Envia uma pergunta
-    
-    GET /chat/history/<session_id> - Recupera histórico do chat
-
 ## Exemplo de Uso
 
-1.  Criar nova ATA:
-    ```bash
-    curl -X POST -F "file=@ata.pdf" -F "titulo=Reunião Mensal" \
-      -F "data_reunião=2024-03-15" http://localhost:5000/atas/
-    ```
-2. Conversar com a ATA: 
-    ```bash
-    curl -X POST -H "Content-Type: application/json" \
-      -d '{"ata_id": 1, "pergunta": "Quais foram os pontos principais discutidos?"}' \
-      http://localhost:5000/chat/
-   ```
+1.  Criar nova ATA (via interface web em `http://localhost:5000/atas/new`):
+    - Título: Reunião Mensal
+    - Arquivo: `ata_reuniao_mensal.pdf`
 
-Requisitos do Sistema
-Garanta que o Ollama está rodando em segundo plano
+2.  Conversar com as ATAs (via interface web em `http://localhost:5000/chat/`):
+    - Selecione o modelo (Gemini Pro / Ollama).
+    - Pergunta: "Quais foram os pontos principais discutidos na Reunião Mensal?"
 
-4GB+ de RAM disponível para processamento dos modelos
+## Requisitos do Sistema (Atualizado)
+- Garanta que o Ollama está rodando em segundo plano *apenas se for selecionar um modelo Ollama no chat*.
+- Chaves de API válidas para OpenAI e Google Gemini.
+- Conexão com a internet para acessar as APIs da OpenAI e Google.
+- 4GB+ de RAM disponível (especialmente se rodar modelos Ollama localmente).
+- 500MB+ de espaço livre para armazenamento de vetores (os embeddings agora são densos e podem ocupar mais espaço dependendo do número de documentos).
 
-500MB+ de espaço livre para armazenamento de vetores
+## Troubleshooting
 
-# Troubleshooting
+### Problema: Erros de API Key (OpenAI/Google)
+- Verifique se as chaves `OPENAI_API_KEY` e `GOOGLE_API_KEY` estão corretamente configuradas no arquivo `.env` na raiz do projeto.
+- Certifique-se de que as chaves são válidas e têm os serviços necessários habilitados nas respectivas plataformas de nuvem.
 
-## Problema: Erros de modelo não encontrado
+### Problema: Erros de modelo Ollama não encontrado
+- Verifique os modelos disponíveis no seu Ollama local: `ollama list`
+- Baixe o modelo necessário se estiver faltando: `ollama pull nome_do_modelo` (ex: `ollama pull deepseek-r1:1.5b`)
+- Certifique-se que o serviço `ollama serve` está em execução.
 
-### Verifique os modelos disponíveis
- ```bash
-ollama list
- ```
-
-### Baixe o modelo necessário
-
- ```bash
-ollama pull deepseek-r1:1.5b
- ```
-
-
-## Problema: Arquivos não sendo processados
-
-### Verifique as permissões das pastas uploads/ e vector_store/
-
-### Garanta que os arquivos enviados não estão corrompidos e possuem texto
+### Problema: Arquivos não sendo processados ou erros de embedding
+- Verifique as permissões das pastas `uploads/` e `vector_store/`.
+- Garanta que os arquivos enviados não estão corrompidos, são PDF ou TXT válidos, e contêm texto extraível.
+- Verifique os logs da aplicação Flask para mensagens de erro detalhadas do `AtaService`.
+- Arquivos muito grandes ou com formatação complexa podem levar mais tempo para processar ou, em raros casos, falhar na extração de texto.

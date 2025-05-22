@@ -9,9 +9,7 @@
                class="list-group-item list-group-item-action">
                 <div class="d-flex w-100 justify-content-between">
                     <h5 class="mb-1">{{ ata.titulo }}</h5>
-                    <small>{{ ata.data_reuniao.strftime('%d/%m/%Y') }}</small>
                 </div>
-                <p class="mb-1">Participantes: {{ ata.participantes|join(', ') }}</p>
             </a>
         {% endfor %}
     </div>
