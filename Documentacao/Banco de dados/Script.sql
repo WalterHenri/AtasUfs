@@ -66,3 +66,22 @@ CREATE TRIGGER update_ata_modtime
 BEFORE UPDATE ON Atas
 FOR EACH ROW
 EXECUTE PROCEDURE update_modified_column();
+
+
+ALTER TABLE Users ADD COLUMN password VARCHAR(255);
+ALTER TABLE Users ADD COLUMN active BOOLEAN;
+ALTER TABLE Users ADD COLUMN fs_uniquifier VARCHAR(255) UNIQUE;
+
+-- Create the Role table
+CREATE TABLE Role (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(80) UNIQUE NOT NULL,
+    description VARCHAR(255)
+);
+
+-- Create the Roles_Users link table
+CREATE TABLE Roles_Users (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES Users(id),
+    role_id INTEGER REFERENCES Role(id)
+);

@@ -8,6 +8,7 @@ from model.entities.ata import Ata
 import os
 from werkzeug.utils import secure_filename
 import logging
+from flask_security import roles_required
 
 logger = logging.getLogger(__name__)
 ata_bp = Blueprint('ata', __name__, url_prefix='/atas')
@@ -48,6 +49,7 @@ def historico_atas():
 
 
 @ata_bp.route('/new', methods=['GET', 'POST'])
+@roles_required('admin')
 def upload_ata():
     if not hasattr(ata_bp, 'ata_service'):
         ata_bp.ata_service = AtaService()

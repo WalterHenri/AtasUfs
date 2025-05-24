@@ -22,3 +22,8 @@ werkzeug
 psycopg2
 
 pypdf
+flask_security
+Flask-Security-Too
+Flask-WTF
+email_validator
+argon2-cffi

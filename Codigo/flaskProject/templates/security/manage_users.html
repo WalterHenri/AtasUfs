@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block sidebar_content %}
+    {{ super() }} {# Includes the conversation list from base.html if user is admin #}
+{% endblock %}
+
+{% block content %}
+<div class="top-nav">
+    <h4 class="mb-0">Gerenciar Usuários</h4>
+</div>
+
+<div class="content-wrapper">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-header">
+            Lista de Usuários
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>Email</th>
+                            <th>Departamento</th>
+                            <th>Ativo</th>
+                            <th>Roles</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_obj in users %}
+                        <tr>
+                            <td>{{ user_obj.id }}</td>
+                            <td>{{ user_obj.nome }}</td>
+                            <td>{{ user_obj.email }}</td>
+                            <td>{{ user_obj.departamento or 'N/A' }}</td>
+                            <td>
+                                {% if user_obj.active %}
+                                    <span class="badge bg-success">Sim</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Não</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for role in user_obj.roles %}
+                                    <span class="badge bg-secondary">{{ role.name }}</span>
+                                {% else %}
+                                    <em>Nenhuma</em>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if 'admin' not in user_obj.roles|map(attribute='name')|list %}
+                                    <form action="{{ url_for('admin.toggle_admin_role', user_id=user_obj.id) }}" method="POST" style="display: inline;">
+                                        <input type="hidden" name="action" value="add">
+                                        <button type="submit" class="btn btn-success btn-sm" title="Tornar Admin">
+                                            <i class="bi bi-person-check-fill"></i> Admin
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    {% if user_obj.id != current_user.id %} {# Admin não pode remover seu próprio privilégio de admin #}
+                                    <form action="{{ url_for('admin.toggle_admin_role', user_id=user_obj.id) }}" method="POST" style="display: inline;">
+                                        <input type="hidden" name="action" value="remove">
+                                        <button type="submit" class="btn btn-danger btn-sm" title="Remover Admin">
+                                            <i class="bi bi-person-x-fill"></i> Admin
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                     <span class="badge bg-info">Você</span>
+                                    {% endif %}
+                                {% endif %}
+                                {# Poderia adicionar botão para ativar/desativar usuário aqui também #}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center">Nenhum usuário encontrado.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

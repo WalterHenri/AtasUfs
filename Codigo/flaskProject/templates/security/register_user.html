@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "security/_macros.html" import render_field_with_errors, render_field %}
+
+{% block sidebar_content %}
+    <div class="text-center">
+        <p class="fs-5">Crie sua Conta</p>
+        <p class="small">Preencha os campos abaixo.</p>
+    </div>
+{% endblock %}
+
+{% block content %}
+<div class="top-nav">
+    <h4 class="mb-0">Registro de Novo Usuário</h4>
+</div>
+<div class="content-wrapper d-flex align-items-center justify-content-center">
+    <div class="card shadow-sm" style="width: 100%; max-width: 500px;">
+        <div class="card-body p-4">
+            <h5 class="card-title text-center mb-4">Criar Conta</h5>
+            {% include "security/_messages.html" %}
+            <form action="{{ url_for_security('register') }}" method="POST" name="register_user_form">
+                {{ register_user_form.hidden_tag() }}
+                <div class="mb-3">
+                    {{ render_field_with_errors(register_user_form.nome, class="form-control", placeholder="Seu nome completo") }}
+                </div>
+                <div class="mb-3">
+                    {{ render_field_with_errors(register_user_form.email, class="form-control", placeholder="Seu email") }}
+                </div>
+                <div class="mb-3">
+                    {{ render_field_with_errors(register_user_form.departamento, class="form-control", placeholder="Seu departamento (opcional)") }}
+                </div>
+                <div class="mb-3">
+                    {{ render_field_with_errors(register_user_form.password, class="form-control", placeholder="Crie uma senha") }}
+                </div>
+                <div class="mb-3">
+                    {{ render_field_with_errors(register_user_form.password_confirm, class="form-control", placeholder="Confirme sua senha") }}
+                </div>
+                <div class="d-grid">
+                    {{ render_field(register_user_form.submit, class="btn btn-primary") }}
+                </div>
+            </form>
+            <p class="text-center mt-3">
+                Já tem uma conta? <a href="{{ url_for_security('login') }}{% if 'next' in request.args %}?next={{ request.args.next|urlencode }}{% endif %}">Faça login aqui</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+    .main-content {
+        height: 100vh;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
