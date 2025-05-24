@@ -1,16 +1,46 @@
 {% extends "base.html" %}
 
+{# Bloco da sidebar com a lista de conversas #}
+{% block sidebar_content %}
+<div class="d-flex justify-content-between align-items-center">
+    <span class="fs-5">Conversas</span>
+    <a href="{{ url_for('chat.new_chat') }}" class="btn btn-outline-light btn-sm" title="Nova Conversa">
+        <i class="bi bi-plus-lg"></i>
+    </a>
+</div>
+<hr>
+<ul class="nav nav-pills flex-column" style="overflow-y: auto; flex-grow: 1;">
+    {% for conv in conversations %}
+    <li class="nav-item">
+        <a href="{{ url_for('chat.load_chat', conversation_id=conv.id) }}" class="nav-link text-truncate">
+            <i class="bi bi-chat-left-text me-2"></i> {{ conv.title }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+
+{# Bloco do conteúdo principal com a lista de ATAs #}
 {% block content %}
-    <h2 class="mb-4">ATAS Cadastradas</h2>
-    
+<div class="top-nav">
+    <h4 class="mb-0">ATAs Cadastradas</h4>
+</div>
+
+<div class="content-wrapper">
     <div class="list-group">
         {% for ata in atas %}
-            <a href="{{ url_for('chat.chat_ata', ata_id=ata.id) }}" 
-               class="list-group-item list-group-item-action">
+            {# O link foi removido para evitar o erro. A lista agora é apenas para visualização. #}
+            <div class="list-group-item list-group-item-action">
                 <div class="d-flex w-100 justify-content-between">
                     <h5 class="mb-1">{{ ata.titulo }}</h5>
+                    <small>{{ ata.created_at.strftime('%d/%m/%Y') }}</small>
                 </div>
-            </a>
+                <p class="mb-1">Arquivo: {{ ata.caminho_arquivo.split('/')[-1] }}</p>
+            </div>
+        {% else %}
+            <p class="text-center text-muted mt-4">Nenhuma ATA cadastrada ainda.</p>
         {% endfor %}
     </div>
+</div>
 {% endblock %}

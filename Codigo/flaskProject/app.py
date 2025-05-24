@@ -34,7 +34,7 @@ app.register_blueprint(chat_bp)
 
 @app.route('/')
 def home():
-    return redirect(url_for('chat.chat_ata'))
+    return redirect(url_for('chat.new_chat'))
 
 if __name__ == '__main__':
     # Create necessary folders if they don't exist, as per README

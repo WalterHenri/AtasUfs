@@ -1,177 +1,189 @@
 {% extends "base.html" %}
 
-{% block content %}
-    <div class="card">
-        <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4>Chat:</h4>
-                <div class="col-md-4">
-                    <label for="llm-model-select" class="form-label visually-hidden">Selecione o Modelo:</label>
-                    <select class="form-select form-select-sm" id="llm-model-select">
-                        <option value="gemini-1.5-flash" selected>Google Gemini 1.5 Flash</option>
-                        <option value="gemini-1.5-pro">Google Gemini 1.5 Pro</option>
-                        <option value="ollama/deepseek-r1:1.5b">Ollama (deepseek-r1:1.5b)</option>
-                        </select>
-                </div>
-            </div>
-        </div>
-
-        <div class="card-body" style="height: 60vh; overflow-y: auto;" id="chat-box">
-            {% for msg in chat_history %}
-                <div class="mb-3">
-                    <div class="message user">
-                        <div class="message-header">
-                            <span class="badge bg-primary">Você</span>
-                            <small class="text-muted">{{ msg.data_interacao.strftime('%H:%M') if msg.data_interacao else 'N/A' }}</small>
-                        </div>
-                        <div class="message-content">{{ msg.pergunta | safe }}</div>
-                    </div>
-
-                    <div class="message system">
-                         <div class="message-header">
-                            <span class="badge bg-success">Sistema ({{ msg.modelo_llm or 'Padrão' }})</span> <small class="text-muted">{{ msg.data_interacao.strftime('%H:%M') if msg.data_interacao else 'N/A' }}</small>
-                        </div>
-                        <div class="message-content">{{ msg.resposta | safe }}</div>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-
-        <div class="card-footer">
-            <form id="chat-form">
-                <div class="input-group">
-                    <input type="text" class="form-control"
-                           placeholder="Digite sua pergunta..." id="pergunta" autocomplete="off">
-                    <button type="submit" class="btn btn-primary" id="send-button">
-                        <i class="bi bi-send"></i> Enviar
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+{% block sidebar_content %}
+<div class="d-flex justify-content-between align-items-center">
+    <span class="fs-5">Conversas</span>
+    <a href="{{ url_for('chat.new_chat') }}" class="btn btn-outline-light btn-sm" title="Nova Conversa">
+        <i class="bi bi-plus-lg"></i>
+    </a>
+</div>
+<hr>
+<ul class="nav nav-pills flex-column" style="overflow-y: auto; flex-grow: 1;">
+    {% for conv in conversations %}
+    <li class="nav-item">
+        <a href="{{ url_for('chat.load_chat', conversation_id=conv.id) }}"
+           class="nav-link text-truncate {% if current_chat and current_chat.id == conv.id %}active{% endif %}">
+            <i class="bi bi-chat-left-text me-2"></i> {{ conv.title }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
 {% endblock %}
+
+{% block content %}
+<div class="top-nav d-flex justify-content-end">
+    <div class="col-md-3">
+        <select class="form-select" id="llm-model-select">
+            <option value="gemini-1.5-flash" selected>gemma-3</option>
+            <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            <option value="ollama/deepseek-r1:1.5b">Ollama (DeepSeek)</option>
+        </select>
+    </div>
+</div>
+
+<div class="content-wrapper" id="chat-container">
+    <div id="chat-box">
+        {% for msg in chat_history %}
+            <div class="message-wrapper user-message">
+                {# O JS agora fará a formatação, então o `|safe` não é mais necessário aqui #}
+                <div class="message-content" data-content="{{ msg.pergunta }}"></div>
+            </div>
+            <div class="message-wrapper system-message">
+                <div class="message-content" data-model="Sistema ({{ msg.modelo_llm }})" data-content="{{ msg.resposta }}"></div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="chat-input-area p-3 bg-white border-top">
+    <form id="chat-form">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="Digite sua pergunta..." id="pergunta" autocomplete="off">
+            <button type="submit" class="btn btn-primary" id="send-button">
+                Enviar <i class="bi bi-send"></i>
+            </button>
+        </div>
+    </form>
+</div>
+<style>
+    .content-wrapper { background-color: #e9ecef; }
+    #chat-box { max-width: 900px; margin: 0 auto; }
+    .message-wrapper { display: flex; margin-bottom: 1rem; }
+    .message-content { padding: 0.75rem 1rem; border-radius: 1rem; max-width: 80%; line-height: 1.5; }
+    .user-message { justify-content: flex-end; }
+    .user-message .message-content { background-color: #0d6efd; color: white; border-bottom-right-radius: 0; }
+    .system-message { justify-content: flex-start; }
+    .system-message .message-content { background-color: #ffffff; color: #212529; border: 1px solid #dee2e6; border-bottom-left-radius: 0; }
+    .system-message .message-content {
+        /* Estilos aprimorados para melhor leitura */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        white-space: pre-wrap; /* Preserva espaços e quebras de linha */
+    }
+    .message-content strong {
+        color: #0d6efd; /* Destaca os títulos em negrito */
+    }
+</style>
+{% endblock %}
+
 
 {% block scripts %}
 <script>
+let currentConversationId = '{{ current_chat.id if current_chat else '' }}';
+
+function scrollToBottom() {
+    const container = document.getElementById('chat-container');
+    container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Formata o texto para exibição, convertendo markdown simples em HTML.
+ * @param {string} text O texto a ser formatado.
+ * @returns {string} O texto formatado como HTML.
+ */
+function formatMessage(text) {
+    // 1. Escapa HTML para evitar XSS
+    let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // 2. Converte **texto** para <strong>texto</strong>
+    safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // 3. Converte quebras de linha para <br>
+    safeText = safeText.replace(/\n/g, '<br>');
+    return safeText;
+}
+
+function addMessageToChatBox(text, sender, model) {
+    const chatBox = document.getElementById('chat-box');
+    const wrapper = document.createElement('div');
+    const content = document.createElement('div');
+
+    wrapper.classList.add('message-wrapper');
+    content.classList.add('message-content');
+
+    let senderPrefix = '';
+    if (sender === 'user') {
+        wrapper.classList.add('user-message');
+        senderPrefix = '<b>Você:</b><br>';
+    } else {
+        wrapper.classList.add('system-message');
+        senderPrefix = `<b>Sistema (${model}):</b><br>`;
+    }
+
+    content.innerHTML = senderPrefix + formatMessage(text);
+    wrapper.appendChild(content);
+    chatBox.appendChild(wrapper);
+    scrollToBottom();
+}
+
+
 document.getElementById('chat-form').onsubmit = async (e) => {
     e.preventDefault();
     const perguntaInput = document.getElementById('pergunta');
-    const chatBox = document.getElementById('chat-box');
     const sendButton = document.getElementById('send-button');
-    const modelSelect = document.getElementById('llm-model-select');
+    const userMessage = perguntaInput.value.trim();
 
-    const userMessageText = perguntaInput.value.trim();
-    if (!userMessageText) return;
+    if (!userMessage) return;
 
-    const selectedModel = modelSelect.value; // Este é o identificador amigável
+    const selectedModel = document.getElementById('llm-model-select').value;
 
-    addMessageToChatBox('Você', userMessageText, true, null);
+    addMessageToChatBox(userMessage, 'user');
     perguntaInput.value = '';
-
     sendButton.disabled = true;
-    sendButton.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Enviando...';
 
     try {
-        const response = await fetch("{{ url_for('chat.chat_ata') }}", {
+        const response = await fetch("{{ url_for('chat.post_message') }}", {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                pergunta: userMessageText,
-                modelo_selecionado: selectedModel // Envia o identificador amigável
+                pergunta: userMessage,
+                modelo_selecionado: selectedModel,
+                conversation_id: currentConversationId || null
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: "Erro desconhecido na resposta do servidor." }));
-            throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
-        }
-
         const data = await response.json();
-
-        if (!data.resposta) {
-             addMessageToChatBox('Sistema', 'Erro: Resposta vazia do servidor.', false, selectedModel, true);
-             throw new Error('Resposta vazia do servidor');
+        if (!response.ok) {
+            throw new Error(data.error || 'Erro desconhecido.');
         }
-        // Usa data.modelo_llm que é o identificador amigável retornado pelo backend
-        addMessageToChatBox(`Sistema (${data.modelo_llm || selectedModel})`, data.resposta, false, data.modelo_llm || selectedModel);
+
+        if (!currentConversationId) {
+            // Se era uma nova conversa, o backend retornou o novo ID.
+            // Redireciona para a nova URL da conversa.
+            window.location.href = `/chat/${data.conversation_id}`;
+        } else {
+            addMessageToChatBox(data.resposta, 'system', data.modelo_llm);
+        }
 
     } catch (error) {
-        console.error('Erro no chat:', error);
-        // Usa selectedModel (identificador amigável) para exibir o erro
-        addMessageToChatBox('Sistema', `Erro ao processar sua pergunta: ${error.message}`, false, selectedModel, true);
+        addMessageToChatBox(`Erro: ${error.message}`, 'system', 'error');
     } finally {
         sendButton.disabled = false;
-        sendButton.innerHTML = '<i class="bi bi-send"></i> Enviar';
-        perguntaInput.focus();
     }
 };
 
-function addMessageToChatBox(user, text, isUser, modelName, isError = false) {
-    const chatBox = document.getElementById('chat-box');
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const sanitizedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                             .replace(/<think>/g, '<div class="think">')
-                             .replace(/<\/think>/g, '</div>')
-                             .replace(/\n/g, '<br>');
-
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('mb-3');
-
-    let badgeClass = isUser ? 'bg-primary' : 'bg-success';
-    let alignClass = isUser ? 'user' : 'system';
-    // let contentClass = isUser ? 'alert-secondary' : (isError ? 'alert-danger' : 'alert-light');
-
-    if (isError && !isUser) {
-        badgeClass = 'bg-danger';
-    }
-
-    // modelName aqui é o identificador amigável (ex: "gemini-1.5-flash")
-    let modelDisplay = modelName ? `(${modelName})` : '';
-    if (isUser) modelDisplay = '';
-
-    messageDiv.innerHTML = `
-        <div class="message ${alignClass}">
-            <div class="message-header">
-                <span class="badge ${badgeClass}">${user} ${modelDisplay}</span>
-                <small class="text-muted">${time}</small>
-            </div>
-            <div class="message-content ${isUser ? 'user-content' : 'system-content'} ${isError ? 'error-content' : ''}">${sanitizedText}</div>
-        </div>
-    `;
-    chatBox.appendChild(messageDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
+// Nova lógica para formatar mensagens já carregadas na página
 document.addEventListener('DOMContentLoaded', () => {
-    const chatBox = document.getElementById('chat-box');
-    chatBox.scrollTop = chatBox.scrollHeight;
+    document.querySelectorAll('.message-content[data-content]').forEach(el => {
+        const text = el.getAttribute('data-content');
+        let senderPrefix = '';
+        if (el.parentElement.classList.contains('user-message')) {
+            senderPrefix = '<b>Você:</b><br>';
+        } else {
+            const model = el.getAttribute('data-model');
+            senderPrefix = `<b>${model}:</b><br>`;
+        }
+        el.innerHTML = senderPrefix + formatMessage(text);
+    });
+    scrollToBottom();
 });
-
 </script>
-
-<style>
-    #chat-box { padding: 1rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.25rem; }
-    .message { margin-bottom: 1rem; max-width: 85%; display: flex; flex-direction: column; }
-    .message.user { margin-left: auto; align-items: flex-end; }
-    .message.system { margin-right: auto; align-items: flex-start; }
-    .message-header { margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
-    .message.user .message-header { flex-direction: row-reverse; }
-    .message-content { padding: 0.6rem 0.9rem; border-radius: 0.75rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-    .message-content.user-content { background: #007bff; color: white; border-radius: 0.75rem 0 0.75rem 0.75rem; }
-    .message.user .message-header .badge { order: 1; }
-    .message-content.system-content { background: #e9ecef; color: #343a40; border: 1px solid #ced4da; border-radius: 0 0.75rem 0.75rem 0.75rem; }
-    .message-content.error-content { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important; }
-    .think { font-style: italic; color: #6c757d; padding: 0.5rem; margin: 0.5rem 0; border-left: 3px solid #007bff; background: rgba(240, 240, 240, 0.7); font-size: 0.9em; }
-    .spinner-border { vertical-align: -0.125em; }
-    .form-select-sm { font-size: 0.875rem; }
-    @media (max-width: 768px) {
-        .message { max-width: 95%; }
-        .card-header .d-flex { flex-direction: column; align-items: stretch; }
-        .card-header h4 { margin-bottom: 0.5rem; }
-        .card-header .col-md-4 { width: 100%; }
-    }
-</style>
-
 {% endblock %}

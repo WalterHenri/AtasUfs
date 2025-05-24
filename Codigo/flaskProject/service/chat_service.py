@@ -1,5 +1,7 @@
-from model import ChatPrompt, db
-from model.schemas import ChatPromptCreateSchema, ChatPromptResponseSchema
+from model.entities.chat_prompt import ChatPrompt
+from model.entities.conversation import Conversation
+from model.database import db
+from model.schemas.chat_schema import ChatPromptCreateSchema, ChatPromptResponseSchema, ConversationResponseSchema
 from langchain.chains import RetrievalQA
 import uuid
 from langchain_openai import OpenAIEmbeddings
@@ -20,9 +22,9 @@ class ChatService:
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
         # Mapeamento de identificadores amigáveis para nomes de modelo da API
         self.google_model_map = {
+            "gemma-3": "gemma-3-27b-it",
             "gemini-1.5-pro": "gemini-1.5-pro-latest",
             "gemini-1.5-flash": "gemini-1.5-flash-latest",
-            # Adicione outros modelos Gemini aqui se necessário
         }
 
     def _get_llm(self, selected_model_identifier: str):
@@ -148,6 +150,27 @@ class ChatService:
             chain_type_kwargs={"prompt": prompt}
         )
 
+    def get_or_create_conversation(self, conversation_id: uuid.UUID = None, first_prompt: str = "") -> Conversation:
+        """Busca uma conversa ou cria uma nova se o ID não for fornecido."""
+        if conversation_id:
+            conversation = db.session.get(Conversation, conversation_id)
+            if conversation:
+                return conversation
+
+        # Cria uma nova conversa
+        title = (first_prompt[:75] + '...') if len(first_prompt) > 75 else first_prompt
+        if not title:
+            title = "Nova Conversa"
+
+        new_conversation = Conversation(
+            id=uuid.uuid4(),
+            title=title
+            # user_id pode ser associado aqui se houver um sistema de login
+        )
+        db.session.add(new_conversation)
+
+        return new_conversation
+
     def generate_response(self, prompt_data: ChatPromptCreateSchema,
                           selected_model_identifier: str) -> ChatPromptResponseSchema:
         try:
@@ -159,73 +182,42 @@ class ChatService:
             if not os.getenv("OPENAI_API_KEY"):
                 raise ValueError("OpenAI API Key não configurada para os embeddings.")
 
-            qa_chain = self._get_qa_chain(selected_model_identifier) # Passa o identificador amigável
+            conversation = self.get_or_create_conversation(prompt_data.conversation_id, prompt_data.pergunta)
 
-            logger.info(
-                f"Invoking QA chain for question: '{prompt_data.pergunta}' with model '{api_model_name}' (selected as '{selected_model_identifier}')")
+            qa_chain = self._get_qa_chain(selected_model_identifier)
             result = qa_chain.invoke({"query": prompt_data.pergunta})
 
-            resposta_text = "Não foi possível gerar uma resposta."
-            if isinstance(result, dict):
-                resposta_text = result.get("result") or result.get("answer") or resposta_text
-            else:
-                resposta_text = str(result) if result else resposta_text
-
-            logger.info(f"Generated response: '{resposta_text[:100]}...'")
+            resposta_text = result.get("result", "Não foi possível gerar uma resposta.")
 
             new_prompt = ChatPrompt(
-                user_id=prompt_data.user_id,
+                conversation_id=conversation.id,
                 pergunta=prompt_data.pergunta,
                 resposta=resposta_text,
-                modelo_llm=selected_model_identifier, # Salva o identificador amigável
-                sessao_id=prompt_data.sessao_id
+                modelo_llm=selected_model_identifier,
             )
 
             db.session.add(new_prompt)
             db.session.commit()
             db.session.refresh(new_prompt)
 
-            return ChatPromptResponseSchema(
-                id=new_prompt.id,
-                user_id=prompt_data.user_id,
-                pergunta=new_prompt.pergunta,
-                resposta=new_prompt.resposta,
-                sessao_id=new_prompt.sessao_id,
-                modelo_llm=new_prompt.modelo_llm, # Retorna o identificador amigável
-                data_interacao=new_prompt.data_interacao,
-                tokens_utilizados=new_prompt.tokens_utilizados,
-                interaction_metadata=None
-            )
+            return ChatPromptResponseSchema.from_orm(new_prompt)
 
-        except ConnectionError as ce:
-            db.session.rollback()
-            logger.error(f"Connection error during response generation: {str(ce)}")
-            raise RuntimeError(f"Erro de conexão com o modelo LLM: {str(ce)}")
-        except ValueError as ve: # Captura erros de configuração, incluindo modelo não encontrado
-            db.session.rollback()
-            logger.error(f"Configuration error during response generation: {str(ve)}")
-            raise RuntimeError(f"Erro de configuração: {str(ve)}") # Isso irá capturar o erro 404
         except Exception as e:
             db.session.rollback()
             logger.error(f"Erro detalhado ao gerar resposta: {type(e).__name__} - {str(e)}")
             raise RuntimeError(f"Erro ao gerar resposta: {str(e)}")
 
-    def get_chat_history(self, session_id: uuid.UUID) -> list[ChatPromptResponseSchema]:
-        """Busca histórico de conversa por sessão e formata para o schema de resposta"""
-        history_orm = ChatPrompt.query.filter_by(sessao_id=session_id).order_by(ChatPrompt.data_interacao.asc()).all()
-        history_dto = []
-        for item in history_orm:
-            history_dto.append(
-                ChatPromptResponseSchema(
-                    id=item.id,
-                    user_id=item.user_id,
-                    pergunta=item.pergunta,
-                    resposta=item.resposta,
-                    modelo_llm=item.modelo_llm, # Retorna o identificador amigável
-                    tokens_utilizados=item.tokens_utilizados,
-                    data_interacao=item.data_interacao,
-                    sessao_id=item.sessao_id,
-                    interaction_metadata=None
-                )
-            )
-        return history_dto
+    def get_conversations(self, user_id: int = None) -> list[ConversationResponseSchema]:
+        """Busca todas as conversas, opcionalmente por usuário."""
+        query = Conversation.query.order_by(Conversation.updated_at.desc())
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+
+        conversations = query.all()
+        return [ConversationResponseSchema.from_orm(c) for c in conversations]
+
+    def get_chat_history(self, conversation_id: uuid.UUID) -> list[ChatPromptResponseSchema]:
+        """Busca histórico de uma conversa específica."""
+        history_orm = ChatPrompt.query.filter_by(conversation_id=conversation_id).order_by(
+            ChatPrompt.data_interacao.asc()).all()
+        return [ChatPromptResponseSchema.from_orm(item) for item in history_orm]
