@@ -67,7 +67,7 @@ class AtaService:
         """Cria nova ATA com verificação de embeddings usando OpenAI"""
         try:
             chunks = self._process_document(file_path)
-
+            print("processou docs")
             vector_dir = os.path.join(self.vector_store_path, "atas")
             os.makedirs(vector_dir, exist_ok=True)
 
@@ -76,7 +76,6 @@ class AtaService:
                 embedding=self.embeddings,
                 persist_directory=vector_dir
             )
-            # vector_store.persist()  # <--- MODIFICADO: Linha removida (Chroma >0.4.x persiste automaticamente)
 
             if vector_store._collection.count() == 0:  # type: ignore
                 if os.path.exists(file_path) and "uploads" in file_path:

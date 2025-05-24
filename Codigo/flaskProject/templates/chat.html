@@ -24,7 +24,7 @@
 <div class="top-nav d-flex justify-content-end">
     <div class="col-md-3">
         <select class="form-select" id="llm-model-select">
-            <option value="gemini-1.5-flash" selected>gemma-3</option>
+            <option value="gemma-3">gemma-3</option>
             <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
             <option value="ollama/deepseek-r1:1.5b">Ollama (DeepSeek)</option>
@@ -80,23 +80,17 @@
 {% block scripts %}
 <script>
 let currentConversationId = '{{ current_chat.id if current_chat else '' }}';
+// ADICIONE A LINHA ABAIXO para ler o token quando a página carregar
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
 function scrollToBottom() {
     const container = document.getElementById('chat-container');
     container.scrollTop = container.scrollHeight;
 }
 
-/**
- * Formata o texto para exibição, convertendo markdown simples em HTML.
- * @param {string} text O texto a ser formatado.
- * @returns {string} O texto formatado como HTML.
- */
 function formatMessage(text) {
-    // 1. Escapa HTML para evitar XSS
     let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    // 2. Converte **texto** para <strong>texto</strong>
     safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // 3. Converte quebras de linha para <br>
     safeText = safeText.replace(/\n/g, '<br>');
     return safeText;
 }
@@ -105,10 +99,8 @@ function addMessageToChatBox(text, sender, model) {
     const chatBox = document.getElementById('chat-box');
     const wrapper = document.createElement('div');
     const content = document.createElement('div');
-
     wrapper.classList.add('message-wrapper');
     content.classList.add('message-content');
-
     let senderPrefix = '';
     if (sender === 'user') {
         wrapper.classList.add('user-message');
@@ -117,24 +109,20 @@ function addMessageToChatBox(text, sender, model) {
         wrapper.classList.add('system-message');
         senderPrefix = `<b>Sistema (${model}):</b><br>`;
     }
-
     content.innerHTML = senderPrefix + formatMessage(text);
     wrapper.appendChild(content);
     chatBox.appendChild(wrapper);
     scrollToBottom();
 }
 
-
 document.getElementById('chat-form').onsubmit = async (e) => {
     e.preventDefault();
     const perguntaInput = document.getElementById('pergunta');
     const sendButton = document.getElementById('send-button');
     const userMessage = perguntaInput.value.trim();
-
     if (!userMessage) return;
 
     const selectedModel = document.getElementById('llm-model-select').value;
-
     addMessageToChatBox(userMessage, 'user');
     perguntaInput.value = '';
     sendButton.disabled = true;
@@ -142,11 +130,15 @@ document.getElementById('chat-form').onsubmit = async (e) => {
     try {
         const response = await fetch("{{ url_for('chat.post_message') }}", {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            // MODIFIQUE O CABEÇALHO (headers)
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken // <-- Adicione o token aqui
+            },
             body: JSON.stringify({
                 pergunta: userMessage,
                 modelo_selecionado: selectedModel,
-                conversation_id: currentConversationId || null
+                conversation_id: currentConversationId ? currentConversationId : null
             })
         });
 
@@ -156,8 +148,6 @@ document.getElementById('chat-form').onsubmit = async (e) => {
         }
 
         if (!currentConversationId) {
-            // Se era uma nova conversa, o backend retornou o novo ID.
-            // Redireciona para a nova URL da conversa.
             window.location.href = `/chat/${data.conversation_id}`;
         } else {
             addMessageToChatBox(data.resposta, 'system', data.modelo_llm);
@@ -170,7 +160,6 @@ document.getElementById('chat-form').onsubmit = async (e) => {
     }
 };
 
-// Nova lógica para formatar mensagens já carregadas na página
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.message-content[data-content]').forEach(el => {
         const text = el.getAttribute('data-content');

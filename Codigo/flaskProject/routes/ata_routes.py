@@ -8,20 +8,21 @@ from model.entities.ata import Ata
 import os
 from werkzeug.utils import secure_filename
 import logging
-from flask_security import roles_required
+from flask_security import roles_required, auth_required, current_user
 
 logger = logging.getLogger(__name__)
 ata_bp = Blueprint('ata', __name__, url_prefix='/atas')
 
 
 @ata_bp.route('/')
+@auth_required()
 def list_atas():
     try:
         # Inicialize os serviços
         chat_service = ChatService(AtaService())
 
         # Busque as conversas para a sidebar
-        conversations = chat_service.get_conversations()
+        conversations = chat_service.get_conversations(user_id=current_user.id)
         atas_orm = Ata.query.order_by(Ata.created_at.desc()).all()
 
         # Passe as conversas para o template
@@ -34,13 +35,14 @@ def list_atas():
 
 
 @ata_bp.route('/historico')
+@auth_required()
 def historico_atas():
     """
     Renderiza a página com o link para o histórico de atas do DSI.
     """
     try:
         chat_service = ChatService(AtaService())
-        conversations = chat_service.get_conversations()
+        conversations = chat_service.get_conversations(user_id=current_user.id)
         return render_template('historico_atas.html', conversations=conversations)
     except Exception as e:
         logger.error(f"Erro ao carregar a página de histórico de ATAs: {e}")
@@ -57,6 +59,7 @@ def upload_ata():
     chat_service = ChatService(ata_bp.ata_service)
 
     if request.method == 'POST':
+        print("entrou")
         file_path_for_cleanup = None
         try:
             # Validação 1: Verificar se o arquivo foi enviado
@@ -90,6 +93,7 @@ def upload_ata():
                 flash(f'Formato de arquivo inválido ({file_ext}). Use PDF ou TXT.', 'danger')
                 return redirect(request.url)
 
+
             upload_dir = current_app.config.get('UPLOAD_FOLDER', './uploads')  # Get from app config
             os.makedirs(upload_dir, exist_ok=True)  # Ensure upload folder exists
 
@@ -104,8 +108,9 @@ def upload_ata():
             file.save(file_path)
             logger.info(f"Arquivo '{filename}' salvo em '{file_path}'.")
 
-            # O campo 'conteudo' em AtaCreateSchema não é mais preenchido diretamente com ""
-            # Ele será populado pelo AtaService a partir do conteúdo processado do arquivo.
+            print("validou arquivos")
+
+
             ata_data = AtaCreateSchema(
                 titulo=titulo,
                 conteudo="",  # Será preenchido pelo service
@@ -146,7 +151,5 @@ def upload_ata():
                 logger.info(
                     f"Arquivo {file_path_for_cleanup} não removido automaticamente após erro inesperado, verificar.")
             return redirect(request.url)
-    conversations = chat_service.get_conversations()
+    conversations = chat_service.get_conversations(user_id=current_user.id)
     return render_template('upload_ata.html', conversations=conversations)
-
-

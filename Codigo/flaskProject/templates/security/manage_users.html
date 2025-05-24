@@ -10,16 +10,7 @@
 </div>
 
 <div class="content-wrapper">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+
 
     <div class="card">
         <div class="card-header">
@@ -63,6 +54,8 @@
                             <td>
                                 {% if 'admin' not in user_obj.roles|map(attribute='name')|list %}
                                     <form action="{{ url_for('admin.toggle_admin_role', user_id=user_obj.id) }}" method="POST" style="display: inline;">
+                                        {# ADICIONE A LINHA ABAIXO #}
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <input type="hidden" name="action" value="add">
                                         <button type="submit" class="btn btn-success btn-sm" title="Tornar Admin">
                                             <i class="bi bi-person-check-fill"></i> Admin
@@ -71,6 +64,8 @@
                                 {% else %}
                                     {% if user_obj.id != current_user.id %} {# Admin não pode remover seu próprio privilégio de admin #}
                                     <form action="{{ url_for('admin.toggle_admin_role', user_id=user_obj.id) }}" method="POST" style="display: inline;">
+                                        {# ADICIONE A LINHA ABAIXO #}
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <input type="hidden" name="action" value="remove">
                                         <button type="submit" class="btn btn-danger btn-sm" title="Remover Admin">
                                             <i class="bi bi-person-x-fill"></i> Admin
