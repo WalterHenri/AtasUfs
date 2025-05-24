@@ -32,6 +32,21 @@ def list_atas():
         return render_template('list_atas.html', atas=[], conversations=[])
 
 
+@ata_bp.route('/historico')
+def historico_atas():
+    """
+    Renderiza a página com o link para o histórico de atas do DSI.
+    """
+    try:
+        chat_service = ChatService(AtaService())
+        conversations = chat_service.get_conversations()
+        return render_template('historico_atas.html', conversations=conversations)
+    except Exception as e:
+        logger.error(f"Erro ao carregar a página de histórico de ATAs: {e}")
+        flash('Não foi possível carregar a página de histórico.', 'danger')
+        return render_template('historico_atas.html', conversations=[])
+
+
 @ata_bp.route('/new', methods=['GET', 'POST'])
 def upload_ata():
     if not hasattr(ata_bp, 'ata_service'):
