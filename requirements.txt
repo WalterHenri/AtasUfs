@@ -27,3 +27,9 @@ Flask-Security-Too
 Flask-WTF
 email_validator
 argon2-cffi
+
+sentence-transformers
+rank_bm25
+hf_xet
+pandas
+ragas
