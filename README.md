@@ -34,33 +34,27 @@ Sistema para gestão de Atas de Reunião com capacidade de busca semântica e ch
     ollama pull deepseek-r1:1.5b
     # ollama pull llama3
     ```
-3.  **Clone o repositório**
+3.  **Clone o repositório e navegue até a pasta correta**
     ```bash
     git clone [https://github.com/WalterHenri/AtasUfs.git](https://github.com/WalterHenri/AtasUfs.git)
-    cd AtasUfs
+    cd AtasUfs/Codigo/flaskProject
     ```
 4.  **Configure o ambiente virtual**
     ```bash
     python -m venv .venv
-    .venv\Scripts\Activate.ps1 # em windows
+    .venv\Scripts\Activate.ps1 # em windows em linux eu nao sei
     ```
 5.  **Instale as dependências**
     ```bash
     pip install -r requirements.txt
     ```
-6.  **Configure as pastas necessárias** (se não criadas automaticamente pelo app.py)
-    ```bash
-    mkdir -p uploads
-    mkdir -p vector_store/atas 
-    ```
-7.  **Crie o banco de dados**
-    Instale o PostgreSQL (ex: versão 12+) na porta 5432.
-    Crie um banco de dados (ex: `AtasUfs`).
-    Configure suas credenciais de conexão no arquivo `AtasUfs/Codigo/flaskProject/model/database.py` ou preferencialmente via variáveis de ambiente que o `database.py` possa ler.
+6. **Crie o banco de dados**
+    Instale o PostgreSQL na porta 5432.
+    Crie um banco de dados com nome: `AtasUfs`).
+    Coloque suas credenciais de conexão no arquivo `AtasUfs/Codigo/flaskProject/model/database.py` isso aqui ainda não foi mudado
     Rode o `AtasUfs/Documentacao/Banco de dados/Script.sql` para criar as tabelas.
-    *(Nota: O script `database.py` atualmente tem credenciais hardcoded. É altamente recomendável modificá-lo para usar variáveis de ambiente para a string de conexão do banco de dados.)*
 
-8.  **Executando a aplicação**
+7. **Executando a aplicação**
     ```bash
     # Certifique-se que o Ollama está rodando em segundo plano SE você planeja usar um modelo Ollama.
     # flask run # Ou use o python app.py
@@ -79,13 +73,6 @@ Sistema para gestão de Atas de Reunião com capacidade de busca semântica e ch
 2.  Conversar com as ATAs (via interface web em `http://localhost:5000/chat/`):
     - Selecione o modelo (Gemini Pro / Ollama).
     - Pergunta: "Quais foram os pontos principais discutidos na Reunião Mensal?"
-
-## Requisitos do Sistema (Atualizado)
-- Garanta que o Ollama está rodando em segundo plano *apenas se for selecionar um modelo Ollama no chat*.
-- Chaves de API válidas para OpenAI e Google Gemini.
-- Conexão com a internet para acessar as APIs da OpenAI e Google.
-- 4GB+ de RAM disponível (especialmente se rodar modelos Ollama localmente).
-- 500MB+ de espaço livre para armazenamento de vetores (os embeddings agora são densos e podem ocupar mais espaço dependendo do número de documentos).
 
 ## Troubleshooting
 
