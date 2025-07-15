@@ -130,8 +130,6 @@ class AtaService:
 
     def search_atas(self, query: str) -> list:
         """Busca semântica nas ATAs usando vector store com OpenAI embeddings"""
-        # Este método é para uma busca direta, pode ou não ser o usado pelo ChatService agora.
-        # O ChatService irá construir seu próprio retriever.
         vector_store = Chroma(
             persist_directory=self.chroma_persistence_dir,
             embedding_function=self.embeddings

@@ -21,6 +21,10 @@ from langchain.retrievers.document_compressors import CrossEncoderReranker
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 from langchain_core.documents import Document  # Adicionado
 
+# Novas importações para a Aumentação de Prompt com Gemini
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +36,7 @@ class ChatService:
         self.google_model_map = {
             "gemma-3": "gemma-3-27b-it",
             "gemini-1.5-pro": "gemini-1.5-pro-latest",
+            # Modelo gratuito e rápido, ideal para tarefas auxiliares como aumentação de prompt.
             "gemini-1.5-flash": "gemini-1.5-flash-latest",
         }
 
@@ -46,14 +51,12 @@ class ChatService:
         # Inicializar BM25Retriever (para busca por palavras-chave)
         self.bm25_retriever = None
         try:
-            # Busca todos os documentos (chunks) do vector store (Chroma)
-
             all_docs_for_bm25 = self.ata_service.get_all_docs_from_vectorstore()
 
             if all_docs_for_bm25 and not (len(all_docs_for_bm25) == 1 and all_docs_for_bm25[0].page_content == "empty"):
                 self.bm25_retriever = BM25Retriever.from_documents(
                     documents=all_docs_for_bm25,
-                    k=20  # BM25 também buscará k=20 documentos para o ensemble
+                    k=20
                 )
                 logger.info(f"BM25Retriever inicializado com {len(all_docs_for_bm25)} documentos.")
             else:
@@ -81,7 +84,8 @@ class ChatService:
             if not os.getenv("GOOGLE_API_KEY"):
                 raise ValueError("GOOGLE_API_KEY not found in environment variables for Gemini.")
             try:
-                return ChatGoogleGenerativeAI(model=api_model_name)
+                # Usamos temperatura 0.0 para a resposta final ser mais determinística
+                return ChatGoogleGenerativeAI(model=api_model_name, temperature=0.0)
             except Exception as e:
                 logger.error(f"Failed to initialize Google model {api_model_name}: {e}")
                 raise ValueError(f"Erro ao inicializar o modelo Gemini '{api_model_name}': {str(e)}")
@@ -91,9 +95,8 @@ class ChatService:
 
     def _get_qa_chain(self, selected_model_identifier: str):
         llm = self._get_llm(selected_model_identifier)
-        vector_store_path = self.ata_service.chroma_persistence_dir  # Usar o mesmo path
+        vector_store_path = self.ata_service.chroma_persistence_dir
 
-        # Carregar ChromaDB para busca vetorial (densa)
         chroma_vectorstore = Chroma(
             persist_directory=vector_store_path,
             embedding_function=self.embeddings
@@ -103,27 +106,23 @@ class ChatService:
             logger.warning(
                 f"Chroma collection em {vector_store_path} está vazia. Busca vetorial pode não encontrar documentos.")
 
-        chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 20})  # k=20 para busca densa
+        chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 20})
 
-        # Configurar EnsembleRetriever para busca híbrida
-        # Ponderar os resultados: 60% vetorial, 40% BM25 (ajustar conforme necessário)
         if self.bm25_retriever and chroma_vectorstore._collection.count() > 0:
             logger.info("Configurando EnsembleRetriever (Híbrido: Chroma + BM25).")
             base_retriever = EnsembleRetriever(
                 retrievers=[self.bm25_retriever, chroma_retriever],
-                weights=[0.4, 0.6]  # Ajuste estes pesos conforme os resultados
+                weights=[0.4, 0.6]
             )
         elif chroma_vectorstore._collection.count() > 0:
             logger.info("Configurando apenas ChromaRetriever (BM25 não disponível ou Chroma vazio).")
             base_retriever = chroma_retriever
-        elif self.bm25_retriever:  # Chroma vazio, mas BM25 disponível (improvável se BM25 usa dados do Chroma)
+        elif self.bm25_retriever:
             logger.info("Configurando apenas BM25Retriever (Chroma vazio).")
             base_retriever = self.bm25_retriever
         else:
             logger.error("Nenhum retriever base (Chroma ou BM25) pôde ser configurado. A busca falhará.")
 
-            # Cria um retriever que não retorna nada para evitar falha na construção da cadeia
-            # É melhor ter um tratamento de erro mais robusto aqui.
             class EmptyRetriever:
                 def get_relevant_documents(self, query): return []
 
@@ -131,13 +130,12 @@ class ChatService:
 
             base_retriever = EmptyRetriever()
 
-        # Configurar Reranker
-        final_retriever = base_retriever  # Default se o reranker não estiver disponível
+        final_retriever = base_retriever
         if self.cross_encoder:
-            reranker_compressor = CrossEncoderReranker(model=self.cross_encoder, top_n=5)  # Seleciona top 5 chunks
+            reranker_compressor = CrossEncoderReranker(model=self.cross_encoder, top_n=5)
             compression_retriever = ContextualCompressionRetriever(
                 base_compressor=reranker_compressor,
-                base_retriever=base_retriever  # O base_retriever já é o ensemble (híbrido) ou o Chroma/BM25
+                base_retriever=base_retriever
             )
             final_retriever = compression_retriever
             logger.info("Reranking configurado sobre o retriever base.")
@@ -175,10 +173,54 @@ class ChatService:
             chain_type_kwargs={"prompt": prompt}
         )
 
+    # --- NOVO MÉTODO PARA AUMENTAÇÃO DE PROMPT ---
+    def _augment_prompt_with_gemini(self, user_question: str) -> str:
+        """
+        Refina a pergunta do usuário usando um modelo Gemini para melhorar a recuperação no RAG.
+        Utiliza o modelo 'gemini-1.5-flash', que é gratuito e eficiente.
+        """
+        logger.info(f"Iniciando aumentação de prompt para a pergunta: '{user_question}'")
+
+        # Garante que a API Key do Google está disponível
+        if not os.getenv("GOOGLE_API_KEY"):
+            logger.warning("GOOGLE_API_KEY não encontrada. Pulando etapa de aumentação de prompt.")
+            return user_question
+
+        try:
+            # Modelo de prompt para instruir o Gemini a refinar a pergunta
+            augmentation_prompt_template = ChatPromptTemplate.from_messages([
+                ("system",
+                 "Você é um especialista em otimização de consultas para sistemas de Recuperação de Informação (RAG). "
+                 "Sua tarefa é reescrever a pergunta do usuário para ser mais clara, específica e rica em contexto, "
+                 "aumentando as chances de encontrar documentos relevantes em uma base de dados vetorial sobre atas e "
+                 "documentos institucionais da UFS. Adicione termos e contexto que um documento oficial provavelmente conteria. "
+                 "Se a pergunta for muito curta ou vaga, expanda-a com detalhes plausíveis. "
+                 "NÃO responda à pergunta, apenas a reescreva de forma otimizada. "
+                 "Mantenha o mesmo idioma da pergunta original. "
+                 "Retorne APENAS a pergunta reescrita, sem nenhum outro texto ou explicação."),
+                ("human", "{question}")
+            ])
+
+            # Modelo LLM para aumentação (usando gemini-1.5-flash por eficiência)
+            # Usamos uma temperatura mais alta aqui para permitir criatividade na reformulação
+            augment_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0.3)
+
+            # Criação da cadeia de aumentação
+            augment_chain = augmentation_prompt_template | augment_llm | StrOutputParser()
+
+            # Invocação da cadeia para obter a pergunta aumentada
+            augmented_question = augment_chain.invoke({"question": user_question})
+
+            logger.info(f"Pergunta original: '{user_question}' | Pergunta aumentada: '{augmented_question}'")
+            return augmented_question.strip()
+
+        except Exception as e:
+            logger.error(f"Erro durante a aumentação de prompt: {e}. Usando a pergunta original.", exc_info=True)
+            # Em caso de falha, retorna a pergunta original para não interromper o fluxo
+            return user_question
 
     def get_or_create_conversation(self, user_id: int, conversation_id: uuid.UUID = None,
                                    first_prompt: str = "") -> Conversation:
-        """Busca uma conversa existente do usuário ou cria uma nova se o ID não for fornecido."""
         if conversation_id:
             conversation = Conversation.query.filter_by(id=conversation_id, user_id=user_id).first()
             if conversation:
@@ -188,11 +230,11 @@ class ChatService:
                 pass
 
         title = (first_prompt[:75] + '...') if len(first_prompt) > 75 else first_prompt
-        if not title:  # Se o primeiro prompt for vazio ou None
+        if not title:
             title = "Nova Conversa"
 
         new_conversation = Conversation(
-            id=uuid.uuid4(),  # Gera um novo UUID se não for encontrado
+            id=uuid.uuid4(),
             title=title,
             user_id=user_id
         )
@@ -205,7 +247,7 @@ class ChatService:
             api_model_name = self.google_model_map.get(selected_model_identifier, selected_model_identifier)
             if selected_model_identifier in self.google_model_map and not os.getenv("GOOGLE_API_KEY"):
                 raise ValueError(f"Google API Key não configurada para o modelo {api_model_name}.")
-            if not os.getenv("OPENAI_API_KEY"):  #
+            if not os.getenv("OPENAI_API_KEY"):
                 raise ValueError("OpenAI API Key não configurada para os embeddings.")
 
             conversation = self.get_or_create_conversation(
@@ -217,23 +259,33 @@ class ChatService:
             if conversation not in db.session:
                 db.session.add(conversation)
 
+            # --- ETAPA DE AUMENTAÇÃO DE PROMPT ---
+            # A pergunta original do usuário
+            original_question = prompt_data.pergunta
+
+            # Gera a pergunta aumentada usando o novo método
+            augmented_question = self._augment_prompt_with_gemini(original_question)
+
+            # O restante do processo usa a 'augmented_question' para a busca
             qa_chain = self._get_qa_chain(selected_model_identifier)
-            result = qa_chain.invoke({"query": prompt_data.pergunta})
+            result = qa_chain.invoke({"query": augmented_question})
+
             resposta_text = result.get("result", "Não foi possível gerar uma resposta.")
-            source_documents = result.get("source_documents", []) # Para debug ou mostrar fontes
+            source_documents = result.get("source_documents", [])
             print(source_documents)
 
             new_prompt = ChatPrompt(
                 conversation_id=conversation.id,
                 user_id=user_id,
-                pergunta=prompt_data.pergunta,
+                # Armazenamos a pergunta original do usuário para exibição
+                pergunta=original_question,
                 resposta=resposta_text,
-                modelo_llm=selected_model_identifier,  # Salva o modelo selecionado pelo usuário
+                modelo_llm=selected_model_identifier,
             )
 
             db.session.add(new_prompt)
-            db.session.commit()  # Commit da conversa e do novo prompt
-            db.session.refresh(new_prompt)  # Garante que temos o ID e outros campos gerados pelo DB
+            db.session.commit()
+            db.session.refresh(new_prompt)
 
             return ChatPromptResponseSchema.from_orm(new_prompt)
 
@@ -244,17 +296,15 @@ class ChatService:
             raise RuntimeError(f"Erro ao gerar resposta: {str(e)}")
 
     def get_conversations(self, user_id: int) -> list[ConversationResponseSchema]:
-        """Busca todas as conversas do usuário especificado."""
         conversations = Conversation.query.filter_by(user_id=user_id).order_by(Conversation.updated_at.desc()).all()
         return [ConversationResponseSchema.from_orm(c) for c in conversations]
 
     def get_chat_history(self, user_id: int, conversation_id: uuid.UUID) -> list[ChatPromptResponseSchema]:
-        """Busca histórico de uma conversa específica, verificando se pertence ao usuário."""
         conversation = Conversation.query.filter_by(id=conversation_id, user_id=user_id).first()
         if not conversation:
             logger.warning(
                 f"User {user_id} tentou acessar a conversa {conversation_id} que não lhe pertence ou não existe.")
-            return []  # Retorna lista vazia se não encontrar ou não pertencer ao usuário
+            return []
 
         history_orm = ChatPrompt.query.filter_by(conversation_id=conversation_id, user_id=user_id).order_by(
             ChatPrompt.data_interacao.asc()).all()
