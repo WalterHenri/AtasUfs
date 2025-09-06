@@ -1,151 +1,157 @@
+# gerar_dataset_ragas.py (VERSÃO CORRIGIDA)
+
 import os
 import pandas as pd
 from dotenv import load_dotenv
-from Codigo.flaskProject.app import app  # Importa a instância do Flask para ter o contexto da aplicação
+import time  # <--- 1. Importe a biblioteca 'time'
+
+from Codigo.flaskProject.app import app
 from service.ata_service import AtaService
 from service.chat_service import ChatService
 
-# Carrega as variáveis de ambiente (API keys)
 load_dotenv()
 
-def gerar_dataset():
+
+def gerar_dataset_corrigido():
     """
-    Função para gerar o dataset no formato necessário para o Ragas.
+    Função corrigida para gerar o dataset com tratamento de erros e prevenção de rate limit.
     """
-    # Perguntas e respostas ideais baseadas nos seus documentos de teste
     perguntas_e_ground_truths = [
+        # ... (sua lista de 20 perguntas continua a mesma aqui)
         {
-            "question": "Quais candidatos tiveram suas inscrições homologadas para o concurso de professor efetivo em Computação, Algoritmos e Compiladores, e Programação, conforme a ata de 16/02/2006?",
-            "ground_truth": "Na reunião de 16/02/2006, Ahmed Ali Abdalla Esmin e Eleazar Geraldo Madriz tiveram suas inscrições homologadas para as matérias de ensino Computação, Algoritmos e Compiladores, e Programação."
+            "question": "Quando e onde será a colação de grau da turma 2024.2?",
+            "ground_truth": "Será dia 20/05/2025, às 16h, no Serviço Social do Transporte e Serviço Nacional de Aprendizagem do Transporte (Sest Senat)."
         },
         {
-            "question": "Na reunião do Conselho de Núcleo de 10/03/2006, quem foi designado presidente da comissão examinadora do concurso para professor efetivo em Programação e Computação, Algoritmos e Compiladores?",
-            "ground_truth": "A professora Leila Maciel do DCCE foi indicada como presidente da comissão examinadora para o concurso em Programação e Computação, Algoritmos e Compiladores, conforme homologado em 10/03/2006."
+            "question": "Como está atualmente o saldo da Itatech Jr?",
+            "ground_truth": "O relatório financeiro do período de 08/04 a 13/05 foi apresentado com saldo final de R$ 3.054,24."
         },
         {
-            "question": "Houve aprovação de novo concurso para professor efetivo na reunião do Conselho de Núcleo de 15 de abril de 2009?",
-            "ground_truth": "Sim, na reunião de 15/04/2009, foi decidido abrir um novo concurso para professor efetivo para preencher a vaga referente à Portaria nº 243 de 30 de janeiro de 2009, antes ocupada pela professora Kalina Ramos Porto."
+            "question": "A disciplina Estrutura de Dados II vai ser ofertada no período 2025.1?",
+            "ground_truth": "Sim, o chefe do departamento informou a inclusão da disciplina SINF0007 - Estrutura de Dados II para atender uma demanda de alunos repetentes. A disciplina foi incluída no turno da tarde devido à indisponibilidade dos alunos solicitantes no horário matutino. A retificação foi aprovada por unanimidade."
         },
         {
-            "question": "Quando foi aprovada a versão final da reformulação do Projeto Pedagógico do Curso de Sistemas de Informação em 2010?",
-            "ground_truth": "A versão final do Projeto Pedagógico do Curso de Sistemas de Informação foi aprovada por unanimidade na 5ª Reunião Ordinária do Conselho de Núcleo, em 02 de junho de 2010 (Ata Nucleo2010.05)."
+            "question": "Qual foi o resultado final do concurso para professor substituto do DSI?",
+            "ground_truth": "Resultado final: 1º colocado – José Vinícius de Carvalho – 52,80 pontos; 2º colocado – Ericles dos Santos Cunha – 50,20 pontos; 3º colocado – Marcos Vinícius Santana Polletti – 49,80 pontos."
         },
         {
-            "question": "Qual professor foi indicado como representante do Núcleo de Sistemas de Informação para a Coordenação de Cursos na reunião de 06 de outubro de 2009?",
-            "ground_truth": "O Prof. José Carlos da Silva foi indicado e aprovado por unanimidade como representante do Núcleo para a Coordenação de Cursos na reunião de 06/10/2009."
+            "question": "O que é o projeto +TI, ele foi aprovado?",
+            "ground_truth": "É um programa profissionalizante de tecnologia da informação (TI) projetado para capacitar jovens em busca de oportunidades no mercado de trabalho. Ele foi aprovado por unanimidade."
         },
         {
-            "question": "Em que data o Conselho Departamental aprovou a criação do Colegiado do Curso de Bacharelado em Sistemas de Informação em 2011?",
-            "ground_truth": "A criação do Colegiado do Curso de Bacharelado em Sistemas de Informação foi aprovada por unanimidade na 5ª Reunião Ordinária do Conselho Departamental em 08 de junho de 2011 (AtaDepartamento2011.05)."
+            "question": "Quando a professora May Li foi para o Dcomp, teve concurso?",
+            "ground_truth": "Não, o DSI já tem um professor substituto e a realocação do prof. Antônio José Alves Neto para a nova vaga de professor substituto foi aprovada por unanimidade."
         },
         {
-            "question": "Quando foi a última discussão sobre a necessidade de um novo concurso para professor efetivo para as áreas de Sistemas Operacionais, Redes de Computadores e Sistemas Distribuídos, e Arquitetura de Computadores, antes de março de 2013?",
-            "ground_truth": "Na 4ª Reunião Extraordinária do Conselho Departamental de 28/11/2012, foi aprovada a abertura de processo seletivo para professor efetivo para as áreas de Sistemas Operacionais, Redes de Computadores e Sistemas Distribuídos; Arquitetura de Computadores e Programação (AtaExtraOrdDepartamento2012.04)."
+            "question": "Qual foi a nota obtida pela UFS no recredenciamento institucional?",
+            "ground_truth": "5,0 (cinco)."
         },
         {
-            "question": "Qual foi a deliberação sobre o Projeto Pedagógico do Curso (PPC) na reunião do Conselho Departamental de 13 de agosto de 2014?",
-            "ground_truth": "Na reunião de 13/08/2014, foi aprovado por unanimidade manter as disciplinas de tópicos sem pré-requisito e a retirada do pré-requisito do Estágio Supervisionado, permitindo que o aluno realize o estágio a qualquer momento (AtaDepartamento2014.04)."
+            "question": "Quais são as disciplinas que compõem a oferta 2024.1?",
+            "ground_truth": "A oferta 2024.1 foi composta pelas disciplinas obrigatórias dos 1º, 3º, 4º, 6º e 8º períodos, além de Matemática Discreta para Computação – SINF0013 (2º período), Introdução à Ciência da Computação – SINF0010 (ofertada para o curso de Física) e a optativa Tópicos Especiais em Hardware - SINF0070."
         },
         {
-            "question": "Em qual reunião de 2017 o Núcleo Docente Estruturante (NDE) tratou da adequação do Projeto Pedagógico do Curso (PPC) às novas normas do sistema acadêmico (Resolução nº 14/2015/CONEPE)?",
-            "ground_truth": "O NDE tratou da adequação do PPC à Resolução nº 14/2015/CONEPE na sua 1ª Reunião Ordinária de 08 de fevereiro de 2017 (AtaNDE2017.01)."
+            "question": "Foi aprovada a solicitação de quebra de pré-requisito para cursar Linguagens Formais e Tradutores para Natan Vinícius Santos Pereira?",
+            "ground_truth": "Sim, a solicitação de quebra de pré-requisito para cursar Linguagens Formais e Tradutores para o discente Natan Vinícius Santos Pereira foi aprovada por unanimidade."
         },
         {
-            "question": "Qual foi a principal pauta da 1ª Reunião Ordinária do NDE em 01 de dezembro de 2020?",
-            "ground_truth": "A pauta principal foi o debate sobre medidas para diminuição dos índices de reprovação nas atividades de Trabalho de Conclusão de Curso (TCC) (AtaNDE2020.01)."
+            "question": "Como ficou a última composição do colegiado, membros titulares, presidente, representantes discentes e etc?",
+            "ground_truth": "Raphael Pereira de Oliveira (membro titular - presidente); José Aélio de Oliveira Júnior (membro titular); José Carlos da Silva (membro titular); Joseval de Melo Santana (membro titular); André Luis Meneses Silva (membro titular); Alcides Xavier Benicasa (membro titular); Marcos Barbosa Dosea (membro titular); Methanias Colaco Rodrigues Junior (membro titular); Andrés Ignácio Martínez Menéndez (membro suplente); Daiane da Silva Santos (representante discente – titular); Pedro Henrique Santana Mesquita (representante discente – titular); Yasmin Passos Alves de Araújo (representante discente – suplente); David Santos Silvino (representante discente – titular)."
         },
         {
-            "question": "Quando foi discutida a possibilidade de oferta de disciplinas na modalidade a distância (EaD) pelo Colegiado do Curso em 2017?",
-            "ground_truth": "Na 1ª Reunião Ordinária do Colegiado de Curso de 11 de janeiro de 2017, foi apreciado um parecer do NDE sobre as disciplinas que poderiam ser ministradas a distância, mas ficou decidido que o NDE se reuniria para discussão e análise mais aprofundada (AtaColegiado2017.01)."
+            "question": "Geilson dos Santos teve seu prazo para conclusão de curso aprovado?",
+            "ground_truth": "Sim, (dois períodos)."
         },
         {
-            "question": "Houve alguma discussão sobre a grade curricular do curso de Sistemas de Informação na reunião do Conselho Departamental de 17 de agosto de 2011?",
-            "ground_truth": "A ata da reunião do Conselho Departamental de 17 de agosto de 2011 (AtaDepartamento2011.07) menciona a apreciação do parecer da coordenação de cursos a respeito do novo Projeto Pedagógico do curso de SI, indicando uma discussão sobre a grade."
+            "question": "Tiago Santiago de Menezes conseguiu o aproveitamento do estágio obrigatório?",
+            "ground_truth": "Sim, por atividade profissional exercida na empresa Prisma Digital."
         },
         {
-            "question": "Qual professor foi eleito Chefe do Departamento de Sistemas de Informação na eleição ocorrida em 08 de maio de 2013?",
-            "ground_truth": "Na eleição para Chefe do DSI realizada em 08 de maio de 2013, o professor Dr. Eugênio Rubens Cardoso Braz foi o primeiro nome da lista tríplice para Chefe, com 08 votos (AtaDepartamento2013.04)."
+            "question": "“Sempre há uma data de entrega para a prova, se o aluno faltar no dia, qual o procedimento?”",
+            "ground_truth": "Seguindo as normas acadêmicas, faz-se a correção da prova e a entrega do material num dia determinado. O aluno que não recolher seu material avaliativo na data definida, poderá recolher na secretaria do departamento até o final do período corrente, onde ficará disponível uma lista com os nomes dos alunos que não recolheram ainda. Nesse caso, o aluno não terá direito de solicitar revisão, a não ser que tenha entrado em contato com o professor e alegado os motivos pelos quais não pôde estar presente."
         },
         {
-            "question": "Quando foi a última vez, antes de 2015, que se discutiu a reformulação do Projeto Pedagógico do Curso no Conselho Departamental?",
-            "ground_truth": "O Projeto Pedagógico foi um tema central na 4ª Reunião Ordinária do Conselho Departamental em 13 de agosto de 2014 (AtaDepartamento2014.04), onde se discutiu alterações e a não exigência de pré-requisitos para disciplinas de tópicos."
+            "question": "O discente Tiago Vinícius Santos Franca conseguiu aproveitamento de Trabalho de Conclusão de Curso I (TCC I)?",
+            "ground_truth": "Sim, (processo 23113.042644/2024-89) mesmo em estágios iniciais do curso, ele conseguiu, visando também amenizar os riscos de retenção do discente."
         },
         {
-            "question": "Qual foi a decisão sobre o pedido de afastamento do Prof. Marcos Barbosa Dósea para cursar doutorado na reunião de 15 de maio de 2014?",
-            "ground_truth": "Na 3ª Reunião Ordinária do Conselho Departamental de 15/05/2014, o pedido de afastamento funcional do Prof. M.Sc. Marcos Barbosa Dósea para cursar doutorado foi aprovado por unanimidade, a partir do período letivo 2014.2 (AtaDepartamento2014.03)."
+            "question": "Como ficou o calendário 2025 de reuniões do colegiado?",
+            "ground_truth": "Continuou seguindo o mesmo padrão e não houve sugestões de alteração, sempre tentando agendar as reuniões para as segundas quartas-feiras de cada mês. Somente houve uma exceção na reunião do mês de janeiro, deslocada para o dia 15 por conta das férias coletivas dos docentes."
         },
         {
-            "question": "Na reunião do Conselho de Núcleo de 21 de fevereiro de 2008, quais providências foram tomadas referente aos concursos para professor efetivo?",
-            "ground_truth": "Na reunião de 21/02/2008 (AtaExtra Ord Nucleo2008.01), foram homologadas as inscrições dos candidatos dos concursos de Sistemas de Informação, constituídas as bancas examinadoras e sorteada a ordem de provas dos candidatos."
+            "question": "Como ficou resolvida aquela situação da Bruna Keila e do Haendel sobre a disciplina de Sistemas Operacionais?",
+            "ground_truth": "Foi aprovada por unanimidade a oferta da disciplina SINF0071 - Sistemas Operacionais como ensino individual no período de recesso acadêmico (verão) para os discentes Bruna Keila Oliveira Santos e Haendel Hernan de Jesus Santos. Eles haviam frequentado como ouvintes e obtiveram nota suficiente para aprovação."
         },
         {
-            "question": "Quando foi a última vez que houve concurso para professor efetivo para a área de Banco de Dados e Programação, conforme as atas até 2009?",
-            "ground_truth": "Conforme a Ata Nucleo2009.01 de 12/01/2009, foi homologado o resultado do concurso para Professor Efetivo (Adjunto) nas matérias de ensino Banco de Dados e Programação, no qual Eugênio Rubens Cardozo Braz foi aprovado em primeiro lugar."
+            "question": "Estou tentando lembrar como ficaram definidos os novos horários das aulas a partir do semestre seguinte, você tem essa informação?",
+            "ground_truth": "A partir do próximo semestre letivo, o primeiro horário terá início às 7h30 e o término do último horário será às 12h30, com duração de 45min para cada aula. Os 15min restantes para completar 1 hora de aula serão reservados para atividades que os alunos desenvolvem em casa."
         },
         {
-            "question": "Em que data de 2024 foi aprovada a criação do curso de Ciência de Dados e Inteligência Artificial pelo Conselho Departamental?",
-            "ground_truth": "Na 1ª Reunião Ordinária do Conselho Departamental de 17 de janeiro de 2024 (Ata Departamento2024.01), foi aprovada a proposta de criação do curso de Ciência de Dados e Inteligência Artificial."
+            "question": "O aluno Samuel Albert conseguiu mesmo aproveitar as atividades do PET como estágio obrigatório?",
+            "ground_truth": "Sim, o aproveitamento do Estágio Supervisionado de Sistemas de Informação foi aprovado por unanimidade para o discente Samuel Albert Santos Andrade. Ele desenvolveu atividades de robótica educacional com alunos da educação básica de escolas públicas sob supervisão do prof. André Luis Meneses Silva e entregou toda documentação necessária."
         },
         {
-            "question": "Qual foi o resultado do concurso para professor efetivo do DSI (edital nº 15/2018) apreciado na reunião de 27 de março de 2019?",
-            "ground_truth": "O candidato Raphael Pereira de Oliveira foi o 1º classificado com 90,03 pontos, e Igor Oliveira Vasconcelos foi o 2º classificado com 73,15 pontos, conforme apreciado na 2ª Reunião Ordinária do Conselho Departamental de 27/03/2019 (AtaDepartamento2019.02)."
+            "question": "Como ficou definida aquela alteração na Oferta 2024.2 que estava sendo discutida?",
+            "ground_truth": "Foi aprovada por unanimidade uma alteração simples na Oferta 2024.2: retirada de Programação II e inclusão de Estrutura de Dados I, nos mesmos dias e horários. A alteração envolveu apenas o prof. Alcides Benicasa e foi justificada aos membros."
         },
         {
-            "question": "Houve alguma mudança na grade curricular referente à disciplina 'Tecnologias de Desenvolvimento para Internet' discutida em 2018?",
-            "ground_truth": "Sim, na 9ª Reunião Ordinária do Colegiado de Curso de 12/12/2018 (AtaColegiado2018.09), foi apreciada e aprovada a alteração da disciplina optativa SINF0035 (Tecnologias de Desenvolvimento para Internet) para compor a estrutura curricular padrão, referente ao sexto período."
+            "question": "Quando ficou definido para ser a recepção dos calouros do DSI em 2024.1?",
+            "ground_truth": "A recepção do DSI aos calouros foi definida para o dia 9 de maio (quinta-feira), às 11h. Isso foi além do evento geral de acolhimento do campus que ocorreria no dia 6 de maio, primeiro dia de aula do semestre."
         }
     ]
-
-    # Lista para armazenar os dados coletados
     dataset_list = []
 
-    # Utiliza o contexto da aplicação Flask para acessar os serviços e configurações
     with app.app_context():
-        # Instancia os serviços como na sua aplicação
         ata_service = AtaService()
         chat_service = ChatService(ata_service)
-
-        # Seleciona o modelo a ser avaliado
-        modelo_selecionado = 'gemini-1.5-flash'
-
-        # Inicializa a cadeia de QA para ter acesso aos componentes
+        modelo_selecionado = 'gemini-2.0-flash-lite'
         qa_chain = chat_service._get_qa_chain(modelo_selecionado)
-        retriever = qa_chain.retriever  # Pega o retriever final (com reranker)
+        retriever = qa_chain.retriever
 
         print("Iniciando a geração do dataset...")
 
-        for item in perguntas_e_ground_truths:
+        # --- 2. Use 'enumerate' para rastrear o número da pergunta ---
+        for i, item in enumerate(perguntas_e_ground_truths):
             question = item["question"]
-            print(f"Processando pergunta: {question}")
+            # Adicionado o número da pergunta para facilitar a depuração
+            print(f"--- Processando pergunta {i + 1}/{len(perguntas_e_ground_truths)}: {question} ---")
 
-            # 1. Recuperar Contextos (contexts)
-            # O retriever já é o `ContextualCompressionRetriever` que faz busca híbrida + reranking
-            retrieved_docs = retriever.invoke(question)
-            contexts = [doc.page_content for doc in retrieved_docs]
+            # --- 3. Adicione o bloco try...except ---
+            try:
+                retrieved_docs = retriever.invoke(question)
+                contexts = [doc.page_content for doc in retrieved_docs]
 
-            # 2. Gerar Resposta do LLM (answer)
-            # Invoca a cadeia completa para obter a resposta gerada
-            result = qa_chain.invoke({"query": question})
-            answer = result.get("result", "Erro ao gerar resposta.")
+                result = qa_chain.invoke({"query": question})
+                answer = result.get("result", "Erro ao extrair 'result' da resposta.")
 
-            # Adiciona os resultados à lista
-            dataset_list.append({
-                "question": question,
-                "answer": answer,
-                "contexts": contexts,
-                "ground_truth": item["ground_truth"]
-            })
+                dataset_list.append({
+                    "question": question,
+                    "answer": answer,
+                    "contexts": contexts,
+                    "ground_truth": item["ground_truth"]
+                })
+                print("Pergunta processada com sucesso.")
 
-    # Converte a lista para um DataFrame do Pandas e salva em CSV
+            except Exception as e:
+                # Se qualquer erro ocorrer, ele será capturado aqui
+                print(f"\n!!!!!! OCORREU UM ERRO NA PERGUNTA {i + 1} !!!!!!!")
+                print(f"Erro: {e}\n")
+
+
+            # --- 4. Adicione um atraso para evitar 'rate limits' ---
+            # Aguarda 1 segundo antes de ir para a próxima pergunta.
+            # Ajuste o valor se continuar recebendo erros de rate limit.
+            time.sleep(10)
+
     df = pd.DataFrame(dataset_list)
     df.to_csv("ragas_evaluation_dataset.csv", index=False, sep=';')
 
     print("\nDataset gerado e salvo em 'ragas_evaluation_dataset.csv'")
+    print(f"Total de itens no CSV: {len(df)}")  # Mostra o total de linhas geradas
     print(df.head())
 
 
 if __name__ == '__main__':
-    # Garante que as pastas necessárias existem
     os.makedirs('./uploads', exist_ok=True)
     os.makedirs('./vector_store/atas', exist_ok=True)
-    gerar_dataset()
+    gerar_dataset_corrigido()  # Chame a função corrigida

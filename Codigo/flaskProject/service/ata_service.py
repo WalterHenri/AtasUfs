@@ -34,6 +34,9 @@ class AtaService:
 
             if file_path.endswith(".pdf"):
                 loader = PyPDFLoader(file_path)
+                print("loader: ")
+                print(loader)
+                print("Fim loader! ")
             elif file_path.endswith(".txt"):
                 loader = TextLoader(file_path, encoding='utf-8')
             else:
@@ -49,12 +52,15 @@ class AtaService:
             if not valid_docs:
                 raise ValueError("Documento não contém conteúdo textual válido após o carregamento.")
 
+            print("valid docs: ------ :", valid_docs, "   :  ---- fim valid docs")
+
             # Separadores customizados em ordem de prioridade
             custom_separators = [
+                r"(?m)^\s*Item \d{1,2}\.\s",  # Listas de Itens: Item 1., Item 2. ...
                 r"(?m)^\s*\d{1,2}\)\s",  # Listas numeradas: 1) ..., 20) ...
                 r"(?m)^\s*(?:X{0,3}(?:IX|IV|V|V?I{1,3})|L?X{0,3}(?:IX|IV|V|V?I{1,3}))\.\s",
                 # Romanos: I., V., X., XX. etc.
-                r"(?m)^\s*Item \d{1,2}\.\s",  # Listas de Itens: Item 1., Item 2. ...
+                ".",  # Pontos finais
                 "\n\n",  # Separador padrão: Parágrafos
                 "\n",  # Separador padrão: Linhas
                 " ",  # Separador padrão: Espaços
@@ -62,8 +68,8 @@ class AtaService:
             ]
 
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=800,
-                chunk_overlap=200,
+                chunk_size=400,
+                chunk_overlap=0,
                 separators=custom_separators,
                 keep_separator=True  # Mantém o separador no início do chunk seguinte (geralmente útil)
             )
@@ -71,7 +77,8 @@ class AtaService:
 
             if not chunks:
                 raise ValueError("Nenhum chunk válido gerado. Verifique o conteúdo do documento.")
-
+            print("chunks gerados:")
+            print(chunks)
             return chunks
 
         except Exception as e:
@@ -95,6 +102,8 @@ class AtaService:
                 persist_directory=vector_dir
             )
 
+            print(vector_store._collection.get())
+
             if vector_store._collection.count() == 0:
                 if os.path.exists(file_path) and "uploads" in file_path:
                     try:
@@ -113,6 +122,8 @@ class AtaService:
             db.session.add(new_ata)
             db.session.commit()
             db.session.refresh(new_ata)
+
+            print(new_ata)
 
             return AtaResponseSchema.model_validate(new_ata)
 
@@ -170,9 +181,9 @@ class AtaService:
                 for i in range(num_docs):
                     content = docs_content_list[i] if docs_content_list and i < len(docs_content_list) else ""
                     metadata = metadatas_list[i] if metadatas_list and i < len(metadatas_list) else {}
-                    # Adicionar uma verificação para garantir que metadados não sejam None
+
                     if metadata is None:
-                        metadata = {"source": "unknown"}  # ou algum valor padrão
+                        metadata = {"source": "unknown"}
                     elif not isinstance(metadata, dict):
                         metadata = {"original_metadata": str(metadata)}
 

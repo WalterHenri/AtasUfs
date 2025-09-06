@@ -35,9 +35,9 @@ class ChatService:
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
         self.google_model_map = {
             "gemma-3": "gemma-3-27b-it",
-            "gemini-1.5-pro": "gemini-1.5-pro-latest",
-            # Modelo gratuito e rápido, ideal para tarefas auxiliares como aumentação de prompt.
-            "gemini-1.5-flash": "gemini-1.5-flash-latest",
+            "gemini-2.5-pro": "gemini-2.5-pro",
+            "gemini-2.5-flash": "gemini-2.5-flash",
+            "gemini-2.0-flash-lite": "gemini-2.0-flash-lite",
         }
 
         # Inicializar CrossEncoder para Reranking
@@ -56,7 +56,7 @@ class ChatService:
             if all_docs_for_bm25 and not (len(all_docs_for_bm25) == 1 and all_docs_for_bm25[0].page_content == "empty"):
                 self.bm25_retriever = BM25Retriever.from_documents(
                     documents=all_docs_for_bm25,
-                    k=20
+                    k=10
                 )
                 logger.info(f"BM25Retriever inicializado com {len(all_docs_for_bm25)} documentos.")
             else:
@@ -106,7 +106,7 @@ class ChatService:
             logger.warning(
                 f"Chroma collection em {vector_store_path} está vazia. Busca vetorial pode não encontrar documentos.")
 
-        chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 20})
+        chroma_retriever = chroma_vectorstore.as_retriever(search_kwargs={"k": 10})
 
         if self.bm25_retriever and chroma_vectorstore._collection.count() > 0:
             logger.info("Configurando EnsembleRetriever (Híbrido: Chroma + BM25).")
@@ -146,19 +146,19 @@ class ChatService:
         Você é um assessor pedagógico da UFS, amigável e prestativo. Sua principal função é auxiliar com informações institucionais baseadas no material fornecido.
 
         Analise a "Pergunta do usuário" abaixo:
-
+        
         1.  Se a pergunta for uma saudação (como "oi", "olá", "bom dia"), uma despedida, ou uma conversa casual que claramente não busca informações específicas sobre atas, documentos ou processos da UFS, responda de forma cordial e apropriada à conversa, sem se basear estritamente no "Contexto institucional".
         2.  Se a pergunta parecer ser uma consulta sobre informações institucionais, atas, documentos, ou procedimentos da UFS, siga estas diretrizes:
             a. Utilize APENAS as informações contidas no "Contexto institucional" abaixo para formular sua resposta.
-            b. Se a informação solicitada não estiver presente no "Contexto institucional", responda explicitamente que a informação não foi encontrada no material disponível. Não tente adivinhar ou buscar informações fora do contexto fornecido.
+            b. Se a informação solicitada não estiver presente no "Contexto institucional" Não tente adivinhar ou buscar informações fora do contexto fornecido.
             c. Apresente a resposta de forma clara e objetiva.
-
+        
         Contexto institucional (material de referência para consultas específicas sobre a UFS):
         {context}
-
+        
         Pergunta do usuário:
         {question}
-
+        
         Sua resposta:
         """
         prompt = PromptTemplate(
@@ -173,21 +173,18 @@ class ChatService:
             chain_type_kwargs={"prompt": prompt}
         )
 
-    # --- NOVO MÉTODO PARA AUMENTAÇÃO DE PROMPT ---
+
     def _augment_prompt_with_gemini(self, user_question: str) -> str:
         """
         Refina a pergunta do usuário usando um modelo Gemini para melhorar a recuperação no RAG.
-        Utiliza o modelo 'gemini-1.5-flash', que é gratuito e eficiente.
+        Utiliza o modelo 'Gemini 2.0 Flash', que é gratuito e eficiente.
         """
         logger.info(f"Iniciando aumentação de prompt para a pergunta: '{user_question}'")
-
-        # Garante que a API Key do Google está disponível
         if not os.getenv("GOOGLE_API_KEY"):
             logger.warning("GOOGLE_API_KEY não encontrada. Pulando etapa de aumentação de prompt.")
             return user_question
 
         try:
-            # Modelo de prompt para instruir o Gemini a refinar a pergunta
             augmentation_prompt_template = ChatPromptTemplate.from_messages([
                 ("system",
                  "Você é um especialista em otimização de consultas para sistemas de Recuperação de Informação (RAG). "
@@ -201,14 +198,8 @@ class ChatService:
                 ("human", "{question}")
             ])
 
-            # Modelo LLM para aumentação (usando gemini-1.5-flash por eficiência)
-            # Usamos uma temperatura mais alta aqui para permitir criatividade na reformulação
-            augment_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0.3)
-
-            # Criação da cadeia de aumentação
+            augment_llm = ChatGoogleGenerativeAI(model="gemma-3-27b-it", temperature=0.3)
             augment_chain = augmentation_prompt_template | augment_llm | StrOutputParser()
-
-            # Invocação da cadeia para obter a pergunta aumentada
             augmented_question = augment_chain.invoke({"question": user_question})
 
             logger.info(f"Pergunta original: '{user_question}' | Pergunta aumentada: '{augmented_question}'")
@@ -216,7 +207,6 @@ class ChatService:
 
         except Exception as e:
             logger.error(f"Erro durante a aumentação de prompt: {e}. Usando a pergunta original.", exc_info=True)
-            # Em caso de falha, retorna a pergunta original para não interromper o fluxo
             return user_question
 
     def get_or_create_conversation(self, user_id: int, conversation_id: uuid.UUID = None,
@@ -259,14 +249,12 @@ class ChatService:
             if conversation not in db.session:
                 db.session.add(conversation)
 
-            # --- ETAPA DE AUMENTAÇÃO DE PROMPT ---
-            # A pergunta original do usuário
             original_question = prompt_data.pergunta
 
             # Gera a pergunta aumentada usando o novo método
-            augmented_question = self._augment_prompt_with_gemini(original_question)
+            augmented_question = original_question #self._augment_prompt_with_gemini(original_question)
+            print("Aumented question" + augmented_question)
 
-            # O restante do processo usa a 'augmented_question' para a busca
             qa_chain = self._get_qa_chain(selected_model_identifier)
             result = qa_chain.invoke({"query": augmented_question})
 
@@ -277,7 +265,6 @@ class ChatService:
             new_prompt = ChatPrompt(
                 conversation_id=conversation.id,
                 user_id=user_id,
-                # Armazenamos a pergunta original do usuário para exibição
                 pergunta=original_question,
                 resposta=resposta_text,
                 modelo_llm=selected_model_identifier,

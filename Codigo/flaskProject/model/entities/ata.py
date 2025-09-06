@@ -13,7 +13,7 @@ class Ata(db.Model):
                           onupdate=db.func.current_timestamp())
 
     def __repr__(self):
-        return f"<Ata {self.titulo} ({self.data_reuniao})>"
+        return f"<Ata {self.titulo}>"
 
     def to_dict(self):
         return {
